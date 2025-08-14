@@ -35,7 +35,7 @@ export default function ChatPage() {
       role: "assistant",
       // escaped apostrophes so eslint rule 'react/no-unescaped-entities' is satisfied
       content:
-        "Hello! I&apos;m SerenAI, your mental wellness companion. How are you feeling today?",
+        "Hello! I'm SerenAI, your mental wellness companion. How are you feeling today?",
       timestamp: new Date(),
     },
   ]);
@@ -310,7 +310,7 @@ export default function ChatPage() {
 
         <div className="mt-6 text-center text-sm text-gray-600">
           <p>
-            SerenAI is not a substitute for professional medical advice. If you&apos;re in
+            SerenAI is not a substitute for professional medical advice. If you&aposs;re in
             crisis, please contact a crisis hotline or emergency services.
           </p>
         </div>
