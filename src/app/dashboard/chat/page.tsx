@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,9 +7,10 @@ import {
   MicOff,
   Volume2,
   VolumeX,
-  MoreVertical,
   Trash2,
   ArrowLeft,
+  History,
+  Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import { useUser } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -28,12 +29,42 @@ interface Message {
   timestamp: Date;
 }
 
+interface Conversation {
+  id: string;
+  title: string;
+  createdAt: Date;
+  messageCount: number;
+}
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition: new () => SpeechRecognition;
+    SpeechRecognition: new () => SpeechRecognition;
+  }
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  error: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionEvent) => void;
+  onend: () => void;
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       role: "assistant",
-      // escaped apostrophes so eslint rule 'react/no-unescaped-entities' is satisfied
       content:
         "Hello! I'm SerenAI, your mental wellness companion. How are you feeling today?",
       timestamp: new Date(),
@@ -44,12 +75,64 @@ export default function ChatPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
-
+  const [isListening, setIsListening] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { user } = useUser();
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const { user: _user } = useUser(); // Prefix with underscore to indicate intentional unused var
   const { collapsed } = useSidebar();
   const router = useRouter();
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognitionConstructor) {
+        const recognition = new SpeechRecognitionConstructor();
+        recognitionRef.current = recognition;
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          const transcript = event.results[0][0].transcript;
+          setInputValue(transcript);
+          setIsListening(false);
+        };
+        
+        recognition.onerror = (event: SpeechRecognitionEvent) => {
+          console.error('Speech recognition error', event.error);
+          setIsListening(false);
+          toast.error('Speech recognition failed. Please try again.');
+        };
+        
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+      }
+    }
+  }, []);
+
+  // Load conversation history
+  useEffect(() => {
+    const loadConversations = async () => {
+      try {
+        const response = await fetch('/api/chat/history');
+        if (response.ok) {
+          const data = await response.json();
+          setConversations(data.conversations || []);
+        }
+      } catch (error) {
+        console.error('Error loading conversations:', error);
+      }
+    };
+    
+    loadConversations();
+  }, []);
 
   // Scroll to bottom of messages
   const scrollToBottom = () => {
@@ -65,20 +148,33 @@ export default function ChatPage() {
     inputRef.current?.focus();
   }, []);
 
+  // Text-to-speech function
+  const speakText = (text: string) => {
+    if (!soundEnabled || typeof window === 'undefined') return;
+    
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (inputValue.trim() === "" || isLoading) return;
-
+    
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
       content: inputValue,
       timestamp: new Date(),
     };
-
+    
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
-
+    
     try {
       // Send message to API
       const response = await fetch("/api/chat", {
@@ -91,18 +187,18 @@ export default function ChatPage() {
           conversationId,
         }),
       });
-
+      
       if (!response.ok) {
         throw new Error("Failed to send message");
       }
-
+      
       const data = await response.json();
-
+      
       // Update conversation ID if this is a new conversation
       if (data.conversationId && !conversationId) {
         setConversationId(data.conversationId);
       }
-
+      
       // Add assistant response
       const assistantMessage: Message = {
         id: Date.now().toString(),
@@ -110,27 +206,32 @@ export default function ChatPage() {
         content: data.response,
         timestamp: new Date(),
       };
-
+      
       setMessages((prev) => [...prev, assistantMessage]);
+      
+      // Speak the response if sound is enabled
+      if (soundEnabled) {
+        speakText(data.response);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
-
-      // Add error message (escaped apostrophes)
+      
+      // Add error message
       const errorMessage: Message = {
         id: Date.now().toString(),
         role: "assistant",
         content:
-          "I&apos;m sorry, I&apos;m having trouble responding right now. Please try again later.",
+          "I'm sorry, I'm having trouble responding right now. Please try again later.",
         timestamp: new Date(),
       };
-
+      
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -143,7 +244,7 @@ export default function ChatPage() {
         id: "1",
         role: "assistant",
         content:
-          "Hello! I&apos;m SerenAI, your mental wellness companion. How are you feeling today?",
+          "Hello! I'm SerenAI, your mental wellness companion. How are you feeling today?",
         timestamp: new Date(),
       },
     ]);
@@ -151,12 +252,107 @@ export default function ChatPage() {
   };
 
   const toggleRecording = () => {
-    setIsRecording(!isRecording);
-    // In a real implementation, you would integrate with Web Speech API here
+    if (isRecording) {
+      // Stop recording
+      setIsRecording(false);
+      setIsListening(false);
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    } else {
+      // Start recording
+      if (!recognitionRef.current) {
+        toast.error('Speech recognition is not supported in your browser.');
+        return;
+      }
+      
+      setIsRecording(true);
+      setIsListening(true);
+      setInputValue("");
+      
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error('Error starting speech recognition:', error);
+        setIsRecording(false);
+        setIsListening(false);
+        toast.error('Failed to start speech recognition. Please check microphone permissions.');
+      }
+    }
+  };
+
+  const handleSaveConversation = async () => {
+    if (messages.length <= 1) {
+      toast.error('Not enough messages to save.');
+      return;
+    }
+    
+    setIsSaving(true);
+    
+    try {
+      const title = messages.length > 1 
+        ? `${messages[1].content.substring(0, 30)}${messages[1].content.length > 30 ? '...' : ''}`
+        : 'Conversation';
+      
+      const response = await fetch('/api/chat/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages,
+          title,
+        }),
+      });
+      
+      if (response.ok) {
+        toast.success('Conversation saved successfully!');
+        
+        // Refresh conversation list
+        const listResponse = await fetch('/api/chat/history');
+        if (listResponse.ok) {
+          const data = await listResponse.json();
+          setConversations(data.conversations || []);
+        }
+      } else {
+        toast.error('Failed to save conversation.');
+      }
+    } catch (error) {
+      console.error('Error saving conversation:', error);
+      toast.error('Failed to save conversation.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLoadConversation = async (id: string) => {
+    try {
+      const response = await fetch(`/api/chat/conversation/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data.messages);
+        setConversationId(id);
+        setShowHistory(false);
+        scrollToBottom();
+      } else {
+        toast.error('Failed to load conversation.');
+      }
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      toast.error('Failed to load conversation.');
+    }
   };
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const formatDate = (date: Date) => {
+    return new Date(date).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   return (
@@ -175,11 +371,69 @@ export default function ChatPage() {
             </Link>
             <h1 className="text-2xl font-bold">Chat with SerenAI</h1>
           </div>
-          <Button variant="outline" onClick={handleClearChat} className="gap-2">
-            <Trash2 className="h-4 w-4" />
-            Clear Chat
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowHistory(!showHistory)}
+              className="gap-2"
+            >
+              <History className="h-4 w-4" />
+              History
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleSaveConversation}
+              disabled={isSaving || messages.length <= 1}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+            <Button variant="outline" onClick={handleClearChat} className="gap-2">
+              <Trash2 className="h-4 w-4" />
+              Clear Chat
+            </Button>
+          </div>
         </div>
+
+        {/* Conversation History Sidebar */}
+        {showHistory && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Conversation History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {conversations.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No saved conversations yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {conversations.map((conversation) => (
+                    <div 
+                      key={conversation.id}
+                      className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => handleLoadConversation(conversation.id)}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-medium">{conversation.title}</h3>
+                          <p className="text-sm text-gray-500">
+                            {formatDate(conversation.createdAt)} • {conversation.messageCount} messages
+                          </p>
+                        </div>
+                        <Badge variant="outline">
+                          {conversation.messageCount}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="h-[calc(100vh-200px)] flex flex-col">
           <CardHeader className="pb-3">
@@ -193,7 +447,6 @@ export default function ChatPage() {
               </Badge>
             </CardTitle>
           </CardHeader>
-
           <CardContent className="flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-y-auto pr-2 space-y-4 mb-4">
               <AnimatePresence>
@@ -226,7 +479,7 @@ export default function ChatPage() {
                   </motion.div>
                 ))}
               </AnimatePresence>
-
+              
               {isLoading && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -248,39 +501,41 @@ export default function ChatPage() {
                   </div>
                 </motion.div>
               )}
-
+              
               <div ref={messagesEndRef} />
             </div>
-
+            
             <div className="border-t border-gray-200 pt-4">
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={toggleRecording}
-                  className={isRecording ? "bg-red-100 text-red-600" : ""}
+                  className={isRecording || isListening ? "bg-red-100 text-red-600 animate-pulse" : ""}
+                  title={isRecording ? "Stop recording" : "Start voice input"}
                 >
-                  {isRecording ? (
+                  {isRecording || isListening ? (
                     <MicOff className="h-5 w-5" />
                   ) : (
                     <Mic className="h-5 w-5" />
                   )}
                 </Button>
-
+                
                 <Input
                   ref={inputRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="Type your message..."
+                  placeholder={isListening ? "Listening..." : "Type your message..."}
                   className="flex-1"
-                  disabled={isLoading}
+                  disabled={isLoading || isListening}
                 />
-
+                
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={() => setSoundEnabled(!soundEnabled)}
+                  title={soundEnabled ? "Mute responses" : "Unmute responses"}
                 >
                   {soundEnabled ? (
                     <Volume2 className="h-5 w-5" />
@@ -288,30 +543,30 @@ export default function ChatPage() {
                     <VolumeX className="h-5 w-5" />
                   )}
                 </Button>
-
+                
                 <Button
                   onClick={handleSendMessage}
-                  disabled={inputValue.trim() === "" || isLoading}
+                  disabled={inputValue.trim() === "" || isLoading || isListening}
                   className="bg-blue-600 hover:bg-blue-700"
+                  title="Send message"
                 >
                   <Send className="h-5 w-5" />
                 </Button>
               </div>
-
-              {isRecording && (
+              
+              {(isRecording || isListening) && (
                 <div className="mt-2 text-sm text-red-500 flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                  Recording... Click the microphone button to stop.
+                  {isListening ? "Listening... Speak now" : "Recording... Click the microphone button to stop"}
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
-
+        
         <div className="mt-6 text-center text-sm text-gray-600">
           <p>
-            SerenAI is not a substitute for professional medical advice. If you&aposs;re in
-            crisis, please contact a crisis hotline or emergency services.
+            SerenAI is not a substitute for professional medical advice. If you&apos;re in crisis, please contact a crisis hotline or emergency services.
           </p>
         </div>
       </div>
