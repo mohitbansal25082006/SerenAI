@@ -1,22 +1,19 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { 
   User, 
   Mail, 
   Calendar, 
   ChevronLeft,
-  Edit,
-  Save,
   Bell,
   Shield,
   Moon,
   Sun,
-  Monitor
+  Monitor,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -24,39 +21,33 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function ProfilePage() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const { user } = useUser();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const { user, isLoaded } = useUser();
   const { collapsed } = useSidebar();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
-
+  
+  // Set initial theme to light if not already set
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('theme')) {
+      setTheme('light');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [setTheme]);
+  
   useEffect(() => {
     if (user) {
-      setName(user.fullName || "");
-      setEmail(user.primaryEmailAddress?.emailAddress || "");
+      // Check if notifications are enabled in localStorage
+      const notificationsPref = localStorage.getItem('notificationsEnabled');
+      if (notificationsPref !== null) {
+        setNotificationsEnabled(notificationsPref === 'true');
+      }
     }
   }, [user]);
-
-  const handleSaveProfile = async () => {
-    setIsLoading(true);
-    
-    try {
-      // In a real app, you would update the user profile here
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setIsEditing(false);
-    } catch (error) {
-      console.error("Error saving profile:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
@@ -64,7 +55,7 @@ export default function ProfilePage() {
       day: "numeric",
     });
   };
-
+  
   const handleExportData = async () => {
     try {
       const response = await fetch('/api/insights/export');
@@ -78,31 +69,57 @@ export default function ProfilePage() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      toast.success("Data exported successfully");
     } catch (error) {
       console.error("Error exporting data:", error);
-      alert("Failed to export data");
+      toast.error("Failed to export data");
     }
   };
-
+  
   const handleDeleteAccount = async () => {
     if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
     
     try {
-      const response = await fetch('/api/users', {
+      // First, try to delete user data from our database
+      const response = await fetch('/api/user/delete', {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
       
       if (response.ok) {
+        // If database deletion was successful, delete from Clerk
+        if (user) {
+          await user.delete();
+        }
+        toast.success("Account deleted successfully");
         router.push('/');
       } else {
         throw new Error('Account deletion failed');
       }
     } catch (error) {
       console.error("Error deleting account:", error);
-      alert("Failed to delete account");
+      toast.error("Failed to delete account");
     }
   };
-
+  
+  const toggleNotifications = () => {
+    const newValue = !notificationsEnabled;
+    setNotificationsEnabled(newValue);
+    localStorage.setItem('notificationsEnabled', newValue.toString());
+    
+    if (newValue) {
+      toast.success("Notifications enabled");
+    } else {
+      toast.success("Notifications disabled");
+    }
+  };
+  
+  if (!isLoaded) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
+  
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -115,32 +132,8 @@ export default function ProfilePage() {
             </Link>
             <h1 className="text-2xl font-bold">Profile</h1>
           </div>
-          <Button 
-            variant={isEditing ? "default" : "outline"}
-            onClick={() => {
-              if (isEditing) {
-                handleSaveProfile();
-              } else {
-                setIsEditing(true);
-              }
-            }}
-            disabled={isLoading}
-            className="gap-2"
-          >
-            {isEditing ? (
-              <>
-                <Save className="h-4 w-4" />
-                {isLoading ? "Saving..." : "Save Changes"}
-              </>
-            ) : (
-              <>
-                <Edit className="h-4 w-4" />
-                Edit Profile
-              </>
-            )}
-          </Button>
         </div>
-
+        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
             <Card>
@@ -148,27 +141,24 @@ export default function ProfilePage() {
                 <CardTitle className="text-center">Profile Picture</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
-                <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-4">
+                <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-4 overflow-hidden">
                   {user?.imageUrl ? (
                     <Image 
                       src={user.imageUrl} 
                       alt={user.fullName || "User"} 
                       width={128}
                       height={128}
-                      className="w-full h-full rounded-full object-cover"
-                      unoptimized={true} // Bypass Next.js Image Optimization if needed
+                      className="w-full h-full object-cover"
+                      unoptimized={true}
                     />
                   ) : (
                     <User className="h-16 w-16 text-white" />
                   )}
                 </div>
-                <Button variant="outline" size="sm" disabled={isEditing}>
-                  Change Photo
-                </Button>
               </CardContent>
             </Card>
           </div>
-
+          
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
@@ -177,37 +167,20 @@ export default function ProfilePage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Full Name</label>
-                  {isEditing ? (
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                      <User className="h-4 w-4 text-gray-500" />
-                      <span>{name || "Not provided"}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                    <User className="h-4 w-4 text-gray-500" />
+                    <span>{user?.fullName || "Not provided"}</span>
+                  </div>
                 </div>
-
+                
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Email Address</label>
-                  {isEditing ? (
-                    <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                      <Mail className="h-4 w-4 text-gray-500" />
-                      <span>{email || "Not provided"}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span>{user?.primaryEmailAddress?.emailAddress || "Not provided"}</span>
+                  </div>
                 </div>
-
+                
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Member Since</label>
                   <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
@@ -217,7 +190,7 @@ export default function ProfilePage() {
                 </div>
               </CardContent>
             </Card>
-
+            
             <Card>
               <CardHeader>
                 <CardTitle>Preferences</CardTitle>
@@ -229,7 +202,10 @@ export default function ProfilePage() {
                     <Button
                       variant={theme === "light" ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setTheme("light")}
+                      onClick={() => {
+                        setTheme("light");
+                        localStorage.setItem('theme', 'light');
+                      }}
                       className="gap-2"
                     >
                       <Sun className="h-4 w-4" />
@@ -238,7 +214,10 @@ export default function ProfilePage() {
                     <Button
                       variant={theme === "dark" ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setTheme("dark")}
+                      onClick={() => {
+                        setTheme("dark");
+                        localStorage.setItem('theme', 'dark');
+                      }}
                       className="gap-2"
                     >
                       <Moon className="h-4 w-4" />
@@ -247,7 +226,10 @@ export default function ProfilePage() {
                     <Button
                       variant={theme === "system" ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setTheme("system")}
+                      onClick={() => {
+                        setTheme("system");
+                        localStorage.setItem('theme', 'system');
+                      }}
                       className="gap-2"
                     >
                       <Monitor className="h-4 w-4" />
@@ -255,7 +237,7 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                 </div>
-
+                
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Notifications</label>
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
@@ -263,12 +245,18 @@ export default function ProfilePage() {
                       <Bell className="h-4 w-4 text-gray-500" />
                       <span>Email Notifications</span>
                     </div>
-                    <Badge variant="outline">Enabled</Badge>
+                    <Button
+                      variant={notificationsEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={toggleNotifications}
+                    >
+                      {notificationsEnabled ? "Enabled" : "Disabled"}
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-
+            
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
