@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/contexts/SidebarContext";
+import Link from "next/link";
 
 export default function Header() {
   const { collapsed } = useSidebar();
@@ -45,9 +46,15 @@ export default function Header() {
             <DropdownMenuContent align="end" className="bg-white border-gray-200 text-gray-900">
               <DropdownMenuLabel>Help & Support</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Documentation</DropdownMenuItem>
-              <DropdownMenuItem>FAQ</DropdownMenuItem>
-              <DropdownMenuItem>Contact Support</DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/documentation">Documentation</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/faq">FAQ</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/contact-support">Contact Support</Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           
