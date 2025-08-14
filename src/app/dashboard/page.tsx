@@ -1,5 +1,4 @@
 "use client";
-
 import React from "react";
 import { useState, useEffect } from "react";
 import ThreeBackground from "@/components/dashboard/ThreeBackground";
@@ -17,13 +16,16 @@ import {
   Target,
   Lightbulb,
   CheckCircle,
+  Play,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
 
 interface MoodItem {
   day: string;
@@ -38,10 +40,12 @@ interface UserStats {
 }
 
 interface ActivityItem {
+  id: string;
   title: string;
   description: string;
   icon: React.ReactNode;
-  duration: string;
+  duration: number; // in minutes
+  type: string;
   completed: boolean;
 }
 
@@ -59,6 +63,11 @@ export default function Dashboard(): React.ReactElement {
   const [completedActivities, setCompletedActivities] = useState<number>(0);
   const [moodData, setMoodData] = useState<MoodItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activeActivity, setActiveActivity] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  
   const { collapsed } = useSidebar();
   const { user } = useUser();
 
@@ -74,11 +83,10 @@ export default function Dashboard(): React.ReactElement {
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user) {
-        // Stop loading if there's no authenticated user so the UI doesn't hang
         setLoading(false);
         return;
       }
-
+      
       try {
         const response = await fetch(`/api/user/stats`);
         if (response.ok) {
@@ -96,41 +104,100 @@ export default function Dashboard(): React.ReactElement {
         setLoading(false);
       }
     };
-
+    
     fetchUserData();
   }, [user]);
 
-  // Recommended activities
-  const activities: ActivityItem[] = [
-    {
-      title: "Breathing Exercise",
-      description: "5-minute guided breathing",
-      icon: <Heart className="h-5 w-5 text-red-400" />,
-      duration: "5 min",
-      completed: completedActivities > 0,
-    },
-    {
-      title: "Gratitude Journaling",
-      description: "Write about things you're grateful for",
-      icon: <BookOpen className="h-5 w-5 text-blue-400" />,
-      duration: "10 min",
-      completed: completedActivities > 1,
-    },
-    {
-      title: "Mindful Walking",
-      description: "Practice mindfulness while walking",
-      icon: <Activity className="h-5 w-5 text-green-400" />,
-      duration: "15 min",
-      completed: completedActivities > 2,
-    },
-    {
-      title: "Body Scan Meditation",
-      description: "Release tension with body awareness",
-      icon: <Brain className="h-5 w-5 text-purple-400" />,
-      duration: "20 min",
-      completed: completedActivities > 3,
-    },
-  ];
+  // Initialize activities
+  useEffect(() => {
+    setActivities([
+      {
+        id: "1",
+        title: "Breathing Exercise",
+        description: "5-minute guided breathing",
+        icon: <Heart className="h-5 w-5 text-red-400" />,
+        duration: 5,
+        type: "breathing",
+        completed: completedActivities > 0,
+      },
+      {
+        id: "2",
+        title: "Gratitude Journaling",
+        description: "Write about things you're grateful for",
+        icon: <BookOpen className="h-5 w-5 text-blue-400" />,
+        duration: 10,
+        type: "journaling",
+        completed: completedActivities > 1,
+      },
+      {
+        id: "3",
+        title: "Mindful Walking",
+        description: "Practice mindfulness while walking",
+        icon: <Activity className="h-5 w-5 text-green-400" />,
+        duration: 15,
+        type: "exercise",
+        completed: completedActivities > 2,
+      },
+      {
+        id: "4",
+        title: "Body Scan Meditation",
+        description: "Release tension with body awareness",
+        icon: <Brain className="h-5 w-5 text-purple-400" />,
+        duration: 20,
+        type: "meditation",
+        completed: completedActivities > 3,
+      },
+    ]);
+  }, [completedActivities]);
+
+  // Timer effect for activities
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (isPlaying && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            setIsPlaying(false);
+            // Mark activity as completed
+            if (activeActivity) {
+              setActivities(prev => 
+                prev.map(act => 
+                  act.id === activeActivity 
+                    ? { ...act, completed: true }
+                    : act
+                )
+              );
+              setCompletedActivities(prev => Math.min(prev + 1, 4));
+              toast.success("Activity completed! Great job!");
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlaying, timeLeft, activeActivity]);
+
+  const startActivity = (activityId: string, duration: number) => {
+    setActiveActivity(activityId);
+    setTimeLeft(duration * 60); // Convert minutes to seconds
+    setIsPlaying(true);
+  };
+
+  const togglePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
 
   // Recent insights
   const insights: InsightItem[] = [
@@ -150,6 +217,20 @@ export default function Dashboard(): React.ReactElement {
     },
   ];
 
+  // Generate mood data for the chart if not available from API
+  const getMoodData = () => {
+    if (moodData.length > 0) {
+      return moodData;
+    }
+    
+    // Fallback data for the chart
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return days.map(day => ({
+      day,
+      mood: Math.random() * 4 + 5 // Random mood between 5-9
+    }));
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 relative flex items-center justify-center">
@@ -162,10 +243,11 @@ export default function Dashboard(): React.ReactElement {
     );
   }
 
+  const chartData = getMoodData();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 relative">
       <ThreeBackground />
-
       <div className={`relative z-10 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
         {/* Welcome Section */}
         <motion.div
@@ -338,6 +420,58 @@ export default function Dashboard(): React.ReactElement {
           </motion.div>
         </div>
 
+        {/* Active Activity Timer */}
+        {activeActivity && (
+          <Card className="mb-8 border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Active Activity
+                </span>
+                <Badge variant="outline">
+                  {formatTime(timeLeft)}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium">
+                    {activities.find(a => a.id === activeActivity)?.title}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {activities.find(a => a.id === activeActivity)?.description}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={togglePlayPause}
+                  >
+                    {isPlaying ? <Activity className="h-5 w-5 rotate-90" /> : <Play className="h-5 w-5" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActiveActivity(null);
+                      setIsPlaying(false);
+                      setTimeLeft(0);
+                    }}
+                  >
+                    Stop
+                  </Button>
+                </div>
+              </div>
+              <Progress 
+                value={((timeLeft / (activities.find(a => a.id === activeActivity)?.duration || 1) * 60)) * 100} 
+                className="mt-4 h-2" 
+              />
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Mood Chart */}
           <motion.div
@@ -355,20 +489,16 @@ export default function Dashboard(): React.ReactElement {
               </CardHeader>
               <CardContent>
                 <div className="h-64 flex items-end justify-between gap-2 mt-4">
-                  {moodData.length > 0 ? (
-                    moodData.map((item, index) => (
-                      <div key={index} className="flex flex-col items-center flex-1">
-                        <div className="text-xs text-gray-500 mb-1">{item.day}</div>
-                        <div
-                          className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
-                          style={{ height: `${item.mood * 10}%` }}
-                        ></div>
-                        <div className="text-xs mt-1 text-gray-700">{item.mood.toFixed(1)}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500">No mood data available yet</div>
-                  )}
+                  {chartData.map((item, index) => (
+                    <div key={index} className="flex flex-col items-center flex-1">
+                      <div className="text-xs text-gray-500 mb-1">{item.day}</div>
+                      <div 
+                        className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
+                        style={{ height: `${item.mood * 10}%` }}
+                      ></div>
+                      <div className="text-xs mt-1 text-gray-700">{item.mood.toFixed(1)}</div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -390,9 +520,21 @@ export default function Dashboard(): React.ReactElement {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {activities.map((activity, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <div className={`p-2 rounded-lg ${activity.completed ? 'bg-green-100' : 'bg-gray-200'}`}>
+                  {activities.map((activity) => (
+                    <div key={activity.id} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                      activity.completed 
+                        ? "bg-green-50" 
+                        : activeActivity === activity.id 
+                          ? "bg-blue-50" 
+                          : "bg-gray-50 hover:bg-gray-100"
+                    }`}>
+                      <div className={`p-2 rounded-lg ${
+                        activity.completed 
+                          ? "bg-green-100" 
+                          : activeActivity === activity.id 
+                            ? "bg-blue-100" 
+                            : "bg-gray-200"
+                      }`}>
                         {activity.icon}
                       </div>
                       <div className="flex-1">
@@ -400,11 +542,42 @@ export default function Dashboard(): React.ReactElement {
                         <p className="text-sm text-gray-600">{activity.description}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">{activity.duration}</span>
+                        <span className="text-xs text-gray-500">{activity.duration} min</span>
                         {activity.completed ? (
                           <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : activeActivity === activity.id ? (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={togglePlayPause}
+                            >
+                              {isPlaying ? (
+                                <Activity className="h-4 w-4 rotate-90" />
+                              ) : (
+                                <Play className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setActiveActivity(null);
+                                setIsPlaying(false);
+                                setTimeLeft(0);
+                              }}
+                            >
+                              Stop
+                            </Button>
+                          </div>
                         ) : (
-                          <Button size="sm" className="h-7 text-xs">Start</Button>
+                          <Button 
+                            size="sm" 
+                            className="h-7 text-xs"
+                            onClick={() => startActivity(activity.id, activity.duration)}
+                          >
+                            Start
+                          </Button>
                         )}
                       </div>
                     </div>
