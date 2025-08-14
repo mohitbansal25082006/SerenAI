@@ -1,7 +1,7 @@
+// E:\serenai\src\app\api\chat\conversation\[id]\route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { type NextRequest } from 'next/server';
 
 interface MessageResponse {
   id: string;
@@ -16,10 +16,13 @@ interface ConversationResponse {
 }
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-): Promise<NextResponse<ConversationResponse | { error: string }>> {
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    // Await the params to resolve the Promise
+    const { id } = await params;
+    
     const { userId } = await auth();
 
     if (!userId) {
@@ -36,7 +39,7 @@ export async function GET(
 
     const conversation = await prisma.conversation.findUnique({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
       include: {
