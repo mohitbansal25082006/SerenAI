@@ -1,7 +1,8 @@
+// E:\serenai\src\app\dashboard\chat\page.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ArrowLeft, History, Save } from "lucide-react";
+import { Send, Trash2, ArrowLeft, History, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ export default function ChatPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -122,7 +124,6 @@ export default function ChatPage() {
       
       setMessages((prev) => [...prev, assistantMessage]);
       
-      // Refresh conversation list if this is a new conversation
       if (!conversationId) {
         loadConversations();
       }
@@ -217,6 +218,31 @@ export default function ChatPage() {
     }
   };
 
+  const handleDeleteConversation = async (id: string) => {
+    setIsDeleting(id);
+    try {
+      const response = await fetch(`/api/chat/conversation/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        toast.success('Conversation deleted successfully!');
+        loadConversations();
+        // If we're currently viewing the deleted conversation, clear the chat
+        if (conversationId === id) {
+          handleClearChat();
+        }
+      } else {
+        toast.error('Failed to delete conversation.');
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast.error('Failed to delete conversation.');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
   const formatTime = (date: Date | string) => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     return dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -286,20 +312,37 @@ export default function ChatPage() {
                   {conversations.map((conversation) => (
                     <div 
                       key={conversation.id}
-                      className="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => handleLoadConversation(conversation.id)}
+                      className="group p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors relative"
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium">{conversation.title}</h3>
-                          <p className="text-sm text-gray-500">
-                            {formatDate(conversation.createdAt)} • {conversation.messageCount} messages
-                          </p>
+                      <div 
+                        className="cursor-pointer"
+                        onClick={() => handleLoadConversation(conversation.id)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium">{conversation.title}</h3>
+                            <p className="text-sm text-gray-500">
+                              {formatDate(conversation.createdAt)} • {conversation.messageCount} messages
+                            </p>
+                          </div>
+                          <Badge variant="outline">
+                            {conversation.messageCount}
+                          </Badge>
                         </div>
-                        <Badge variant="outline">
-                          {conversation.messageCount}
-                        </Badge>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                        onClick={() => handleDeleteConversation(conversation.id)}
+                        disabled={isDeleting === conversation.id}
+                      >
+                        {isDeleting === conversation.id ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-gray-800" />
+                        ) : (
+                          <X className="h-4 w-4 text-red-500" />
+                        )}
+                      </Button>
                     </div>
                   ))}
                 </div>

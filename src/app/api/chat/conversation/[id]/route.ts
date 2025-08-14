@@ -60,7 +60,6 @@ export async function GET(
       timestamp: message.createdAt.toISOString(),
     }));
 
-    // Ensure title is not null by providing a default value
     const title = conversation.title || "Untitled Conversation";
 
     return NextResponse.json({ 
@@ -69,6 +68,55 @@ export async function GET(
     });
   } catch (error) {
     console.error("Error loading conversation:", error);
+    return NextResponse.json(
+      { error: "Internal server error" }, 
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Await the params to resolve the Promise
+    const { id } = await params;
+    
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    await prisma.$transaction([
+      prisma.message.deleteMany({
+        where: {
+          conversationId: id,
+          conversation: {
+            userId: user.id,
+          },
+        },
+      }),
+      prisma.conversation.delete({
+        where: {
+          id: id,
+          userId: user.id,
+        },
+      }),
+    ]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting conversation:", error);
     return NextResponse.json(
       { error: "Internal server error" }, 
       { status: 500 }
