@@ -1,3 +1,4 @@
+// E:\serenai\src\app\api\chat\conversation\[id]\route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
@@ -13,7 +14,6 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user from database
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
     });
@@ -22,11 +22,15 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Check if conversation exists and belongs to user
-    const conversation = await prisma.conversation.findFirst({
+    const conversation = await prisma.conversation.findUnique({
       where: {
         id: params.id,
         userId: user.id,
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 
@@ -34,21 +38,17 @@ export async function GET(
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
-    // Get messages for this conversation
-    const messages = await prisma.message.findMany({
-      where: { conversationId: params.id },
-      orderBy: { createdAt: "asc" },
-    });
-
-    // Format messages for response
-    const formattedMessages = messages.map(msg => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      timestamp: msg.createdAt,
+    const formattedMessages = conversation.messages.map(message => ({
+      id: message.id,
+      role: message.role as "user" | "assistant",
+      content: message.content,
+      timestamp: message.createdAt.toISOString(),
     }));
 
-    return NextResponse.json({ messages: formattedMessages });
+    return NextResponse.json({ 
+      messages: formattedMessages,
+      title: conversation.title,
+    });
   } catch (error) {
     console.error("Error loading conversation:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

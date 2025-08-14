@@ -1,3 +1,4 @@
+// E:\serenai\src\app\api\chat\history\route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
@@ -10,7 +11,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user from database
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
     });
@@ -19,22 +19,24 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get conversations with message count
     const conversations = await prisma.conversation.findMany({
       where: { userId: user.id },
       include: {
         _count: {
           select: { messages: true },
         },
+        messages: {
+          orderBy: { createdAt: "asc" },
+          take: 1,
+        },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // Format for response
     const formattedConversations = conversations.map(conv => ({
       id: conv.id,
-      title: conv.title || "Conversation",
-      createdAt: conv.createdAt,
+      title: conv.title || conv.messages[0]?.content?.substring(0, 30) || "Conversation",
+      createdAt: conv.createdAt.toISOString(),
       messageCount: conv._count.messages,
     }));
 

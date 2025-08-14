@@ -1,24 +1,12 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Send,
-  Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
-  Trash2,
-  ArrowLeft,
-  History,
-  Save,
-} from "lucide-react";
+import { Send, Trash2, ArrowLeft, History, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useUser } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -26,38 +14,21 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  timestamp: Date;
+  timestamp: string | Date;
 }
 
 interface Conversation {
   id: string;
   title: string;
-  createdAt: Date;
+  createdAt: string;
   messageCount: number;
 }
 
-declare global {
-  interface Window {
-    webkitSpeechRecognition: new () => SpeechRecognition;
-    SpeechRecognition: new () => SpeechRecognition;
-  }
-}
-
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  error: string;
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-  onresult: (event: SpeechRecognitionEvent) => void;
-  onerror: (event: SpeechRecognitionEvent) => void;
-  onend: () => void;
+interface ApiMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
 }
 
 export default function ChatPage() {
@@ -65,72 +36,38 @@ export default function ChatPage() {
     {
       id: "1",
       role: "assistant",
-      content:
-        "Hello! I'm SerenAI, your mental wellness companion. How are you feeling today?",
+      content: "Hello! I'm SerenAI, your mental wellness companion. How are you feeling today?",
       timestamp: new Date(),
     },
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [isListening, setIsListening] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const { user: _user } = useUser(); // Prefix with underscore to indicate intentional unused var
   const { collapsed } = useSidebar();
-  const router = useRouter();
-
-  // Initialize speech recognition
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognitionConstructor) {
-        const recognition = new SpeechRecognitionConstructor();
-        recognitionRef.current = recognition;
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-        
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-          const transcript = event.results[0][0].transcript;
-          setInputValue(transcript);
-          setIsListening(false);
-        };
-        
-        recognition.onerror = (event: SpeechRecognitionEvent) => {
-          console.error('Speech recognition error', event.error);
-          setIsListening(false);
-          toast.error('Speech recognition failed. Please try again.');
-        };
-        
-        recognition.onend = () => {
-          setIsListening(false);
-        };
-      }
-    }
-  }, []);
 
   // Load conversation history
-  useEffect(() => {
-    const loadConversations = async () => {
-      try {
-        const response = await fetch('/api/chat/history');
-        if (response.ok) {
-          const data = await response.json();
-          setConversations(data.conversations || []);
-        }
-      } catch (error) {
-        console.error('Error loading conversations:', error);
+  const loadConversations = async () => {
+    try {
+      const response = await fetch('/api/chat/history');
+      if (response.ok) {
+        const data = await response.json();
+        setConversations(data.conversations || []);
+      } else {
+        toast.error('Failed to load conversation history');
       }
-    };
-    
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+      toast.error('Failed to load conversation history');
+    }
+  };
+
+  useEffect(() => {
     loadConversations();
   }, []);
 
@@ -144,22 +81,8 @@ export default function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
-    // Focus input on load
     inputRef.current?.focus();
   }, []);
-
-  // Text-to-speech function
-  const speakText = (text: string) => {
-    if (!soundEnabled || typeof window === 'undefined') return;
-    
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1;
-      utterance.pitch = 1;
-      utterance.volume = 1;
-      window.speechSynthesis.speak(utterance);
-    }
-  };
 
   const handleSendMessage = async () => {
     if (inputValue.trim() === "" || isLoading) return;
@@ -176,30 +99,20 @@ export default function ChatPage() {
     setIsLoading(true);
     
     try {
-      // Send message to API
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: inputValue,
-          conversationId,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: inputValue, conversationId }),
       });
       
-      if (!response.ok) {
-        throw new Error("Failed to send message");
-      }
+      if (!response.ok) throw new Error("Failed to send message");
       
       const data = await response.json();
       
-      // Update conversation ID if this is a new conversation
       if (data.conversationId && !conversationId) {
         setConversationId(data.conversationId);
       }
       
-      // Add assistant response
       const assistantMessage: Message = {
         id: Date.now().toString(),
         role: "assistant",
@@ -209,23 +122,18 @@ export default function ChatPage() {
       
       setMessages((prev) => [...prev, assistantMessage]);
       
-      // Speak the response if sound is enabled
-      if (soundEnabled) {
-        speakText(data.response);
+      // Refresh conversation list if this is a new conversation
+      if (!conversationId) {
+        loadConversations();
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      
-      // Add error message
-      const errorMessage: Message = {
+      setMessages((prev) => [...prev, {
         id: Date.now().toString(),
         role: "assistant",
-        content:
-          "I'm sorry, I'm having trouble responding right now. Please try again later.",
+        content: "I'm sorry, I'm having trouble responding right now. Please try again later.",
         timestamp: new Date(),
-      };
-      
-      setMessages((prev) => [...prev, errorMessage]);
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -239,46 +147,14 @@ export default function ChatPage() {
   };
 
   const handleClearChat = () => {
-    setMessages([
-      {
-        id: "1",
-        role: "assistant",
-        content:
-          "Hello! I'm SerenAI, your mental wellness companion. How are you feeling today?",
-        timestamp: new Date(),
-      },
-    ]);
+    setMessages([{
+      id: "1",
+      role: "assistant",
+      content: "Hello! I'm SerenAI, your mental wellness companion. How are you feeling today?",
+      timestamp: new Date(),
+    }]);
     setConversationId(null);
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      // Stop recording
-      setIsRecording(false);
-      setIsListening(false);
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    } else {
-      // Start recording
-      if (!recognitionRef.current) {
-        toast.error('Speech recognition is not supported in your browser.');
-        return;
-      }
-      
-      setIsRecording(true);
-      setIsListening(true);
-      setInputValue("");
-      
-      try {
-        recognitionRef.current.start();
-      } catch (error) {
-        console.error('Error starting speech recognition:', error);
-        setIsRecording(false);
-        setIsListening(false);
-        toast.error('Failed to start speech recognition. Please check microphone permissions.');
-      }
-    }
+    inputRef.current?.focus();
   };
 
   const handleSaveConversation = async () => {
@@ -296,24 +172,15 @@ export default function ChatPage() {
       
       const response = await fetch('/api/chat/save', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages,
-          title,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, title }),
       });
       
       if (response.ok) {
         toast.success('Conversation saved successfully!');
-        
-        // Refresh conversation list
-        const listResponse = await fetch('/api/chat/history');
-        if (listResponse.ok) {
-          const data = await listResponse.json();
-          setConversations(data.conversations || []);
-        }
+        const data = await response.json();
+        setConversationId(data.conversationId);
+        loadConversations();
       } else {
         toast.error('Failed to save conversation.');
       }
@@ -330,10 +197,17 @@ export default function ChatPage() {
       const response = await fetch(`/api/chat/conversation/${id}`);
       if (response.ok) {
         const data = await response.json();
-        setMessages(data.messages);
+        
+        const formattedMessages = data.messages.map((msg: ApiMessage) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        
+        setMessages(formattedMessages);
         setConversationId(id);
         setShowHistory(false);
         scrollToBottom();
+        inputRef.current?.focus();
       } else {
         toast.error('Failed to load conversation.');
       }
@@ -343,12 +217,14 @@ export default function ChatPage() {
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const formatTime = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
+  const formatDate = (date: string | Date) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -356,11 +232,9 @@ export default function ChatPage() {
   };
 
   return (
-    <div
-      className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${
-        collapsed ? "lg:pl-20" : "lg:pl-64"
-      }`}
-    >
+    <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${
+      collapsed ? "lg:pl-20" : "lg:pl-64"
+    }`}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -396,7 +270,6 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Conversation History Sidebar */}
         {showHistory && (
           <Card className="mb-6">
             <CardHeader>
@@ -456,23 +329,17 @@ export default function ChatPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
-                    className={`flex ${
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    }`}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                        message.role === "user"
-                          ? "bg-blue-500 text-white rounded-br-none"
-                          : "bg-white border border-gray-200 rounded-bl-none"
-                      }`}
-                    >
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                      message.role === "user"
+                        ? "bg-blue-500 text-white rounded-br-none"
+                        : "bg-white border border-gray-200 rounded-bl-none"
+                    }`}>
                       <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div
-                        className={`text-xs mt-1 ${
-                          message.role === "user" ? "text-blue-100" : "text-gray-500"
-                        }`}
-                      >
+                      <div className={`text-xs mt-1 ${
+                        message.role === "user" ? "text-blue-100" : "text-gray-500"
+                      }`}>
                         {formatTime(message.timestamp)}
                       </div>
                     </div>
@@ -489,14 +356,8 @@ export default function ChatPage() {
                   <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-3 max-w-[80%]">
                     <div className="flex space-x-2">
                       <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div>
-                      <div
-                        className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      ></div>
-                      <div
-                        className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
-                        style={{ animationDelay: "0.4s" }}
-                      ></div>
+                      <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                      <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "0.4s" }}></div>
                     </div>
                   </div>
                 </motion.div>
@@ -507,59 +368,23 @@ export default function ChatPage() {
             
             <div className="border-t border-gray-200 pt-4">
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={toggleRecording}
-                  className={isRecording || isListening ? "bg-red-100 text-red-600 animate-pulse" : ""}
-                  title={isRecording ? "Stop recording" : "Start voice input"}
-                >
-                  {isRecording || isListening ? (
-                    <MicOff className="h-5 w-5" />
-                  ) : (
-                    <Mic className="h-5 w-5" />
-                  )}
-                </Button>
-                
                 <Input
                   ref={inputRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder={isListening ? "Listening..." : "Type your message..."}
+                  placeholder="Type your message..."
                   className="flex-1"
-                  disabled={isLoading || isListening}
+                  disabled={isLoading}
                 />
-                
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setSoundEnabled(!soundEnabled)}
-                  title={soundEnabled ? "Mute responses" : "Unmute responses"}
-                >
-                  {soundEnabled ? (
-                    <Volume2 className="h-5 w-5" />
-                  ) : (
-                    <VolumeX className="h-5 w-5" />
-                  )}
-                </Button>
-                
                 <Button
                   onClick={handleSendMessage}
-                  disabled={inputValue.trim() === "" || isLoading || isListening}
+                  disabled={inputValue.trim() === "" || isLoading}
                   className="bg-blue-600 hover:bg-blue-700"
-                  title="Send message"
                 >
                   <Send className="h-5 w-5" />
                 </Button>
               </div>
-              
-              {(isRecording || isListening) && (
-                <div className="mt-2 text-sm text-red-500 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                  {isListening ? "Listening... Speak now" : "Recording... Click the microphone button to stop"}
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
