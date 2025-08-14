@@ -1,19 +1,24 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { SidebarProvider } from "@/contexts/SidebarContext";
-
+import { syncUserWithDatabase } from "@/lib/auth";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const session = await auth();
-
-  
-  const userId = (session as { userId?: string | null })?.userId;
-
+  const { userId } = await auth();
   if (!userId) {
     redirect("/sign-in");
+  }
+
+  // Sync user with database directly instead of making HTTP request
+  try {
+    await syncUserWithDatabase();
+  } catch (error) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("User sync failed:", error);
+    }
   }
 
   return (

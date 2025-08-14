@@ -1,39 +1,66 @@
 "use client";
 
+import React from "react";
 import { useState, useEffect } from "react";
 import ThreeBackground from "@/components/dashboard/ThreeBackground";
 import { motion } from "framer-motion";
-import { 
-  MessageSquare, 
-  BookOpen, 
-  BarChart3, 
-  TrendingUp, 
+import {
+  MessageSquare,
+  BookOpen,
+  BarChart3,
+  TrendingUp,
   Heart,
   Calendar,
   Activity,
   Brain,
-  Sparkles,
-  Star,
-  Users,
-  Award,
   Zap,
   Target,
   Lightbulb,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Progress } from "@/components/ui/progress";
 import { useSidebar } from "@/contexts/SidebarContext";
+import { useUser } from "@clerk/nextjs";
 
-export default function Dashboard() {
-  const [greeting, setGreeting] = useState("");
-  const [moodScore, setMoodScore] = useState(7.2);
-  const [streak, setStreak] = useState(7);
-  const [completedActivities, setCompletedActivities] = useState(3);
+interface MoodItem {
+  day: string;
+  mood: number;
+}
+
+interface UserStats {
+  avgMood?: number;
+  streak?: number;
+  completedActivities?: number;
+  moodData?: MoodItem[];
+}
+
+interface ActivityItem {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  duration: string;
+  completed: boolean;
+}
+
+interface InsightItem {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+export default function Dashboard(): React.ReactElement {
+  const [greeting, setGreeting] = useState<string>("");
+  const [moodScore, setMoodScore] = useState<number>(0);
+  const [streak, setStreak] = useState<number>(0);
+  const [completedActivities, setCompletedActivities] = useState<number>(0);
+  const [moodData, setMoodData] = useState<MoodItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const { collapsed } = useSidebar();
+  const { user } = useUser();
 
   // Set greeting based on time of day
   useEffect(() => {
@@ -43,69 +70,102 @@ export default function Dashboard() {
     else setGreeting("Good evening");
   }, []);
 
-  // Mood data for the chart
-  const moodData = [
-    { day: "Mon", mood: 6.5 },
-    { day: "Tue", mood: 7.0 },
-    { day: "Wed", mood: 6.8 },
-    { day: "Thu", mood: 7.5 },
-    { day: "Fri", mood: 7.2 },
-    { day: "Sat", mood: 8.0 },
-    { day: "Sun", mood: 7.8 },
-  ];
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) {
+        // Stop loading if there's no authenticated user so the UI doesn't hang
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/user/stats`);
+        if (response.ok) {
+          const data = (await response.json()) as UserStats;
+          setMoodScore(data.avgMood ?? 0);
+          setStreak(data.streak ?? 0);
+          setCompletedActivities(data.completedActivities ?? 0);
+          setMoodData(data.moodData ?? []);
+        } else {
+          console.error("Failed to fetch user stats:", response.statusText);
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [user]);
 
   // Recommended activities
-  const activities = [
-    { 
-      title: "Breathing Exercise", 
-      description: "5-minute guided breathing", 
+  const activities: ActivityItem[] = [
+    {
+      title: "Breathing Exercise",
+      description: "5-minute guided breathing",
       icon: <Heart className="h-5 w-5 text-red-400" />,
       duration: "5 min",
-      completed: true
+      completed: completedActivities > 0,
     },
-    { 
-      title: "Gratitude Journaling", 
-      description: "Write about things you're grateful for", 
+    {
+      title: "Gratitude Journaling",
+      description: "Write about things you're grateful for",
       icon: <BookOpen className="h-5 w-5 text-blue-400" />,
       duration: "10 min",
-      completed: true
+      completed: completedActivities > 1,
     },
-    { 
-      title: "Mindful Walking", 
-      description: "Practice mindfulness while walking", 
+    {
+      title: "Mindful Walking",
+      description: "Practice mindfulness while walking",
       icon: <Activity className="h-5 w-5 text-green-400" />,
       duration: "15 min",
-      completed: true
+      completed: completedActivities > 2,
     },
-    { 
-      title: "Body Scan Meditation", 
-      description: "Release tension with body awareness", 
+    {
+      title: "Body Scan Meditation",
+      description: "Release tension with body awareness",
       icon: <Brain className="h-5 w-5 text-purple-400" />,
       duration: "20 min",
-      completed: false
+      completed: completedActivities > 3,
     },
   ];
 
   // Recent insights
-  const insights = [
+  const insights: InsightItem[] = [
     {
       title: "Mood Pattern",
-      description: "Your mood tends to improve in the evenings. Consider scheduling challenging tasks for earlier in the day.",
+      description:
+        "Your mood tends to improve in the evenings. Consider scheduling challenging tasks for earlier in the day.",
       icon: <BarChart3 className="h-5 w-5 text-blue-400" />,
-      color: "bg-blue-100 border-blue-200"
+      color: "bg-blue-100 border-blue-200",
     },
     {
       title: "Suggested Activity",
-      description: "Based on your recent journal entries, try a 10-minute gratitude meditation before bed tonight.",
+      description:
+        "Based on your recent journal entries, try a 10-minute gratitude meditation before bed tonight.",
       icon: <Lightbulb className="h-5 w-5 text-yellow-400" />,
-      color: "bg-yellow-100 border-yellow-200"
-    }
+      color: "bg-yellow-100 border-yellow-200",
+    },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 relative flex items-center justify-center">
+        <ThreeBackground />
+        <div className="relative z-10 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-lg">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 relative">
       <ThreeBackground />
-      
+
       <div className={`relative z-10 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
         {/* Welcome Section */}
         <motion.div
@@ -116,7 +176,7 @@ export default function Dashboard() {
         >
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl font-bold mb-2">{greeting}, Alex!</h1>
+              <h1 className="text-3xl font-bold mb-2">{greeting}, {user?.firstName || 'User'}!</h1>
               <p className="text-gray-600">How are you feeling today?</p>
             </div>
           </div>
@@ -135,7 +195,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-end justify-between">
-                  <div className="text-2xl font-bold">{moodScore}/10</div>
+                  <div className="text-2xl font-bold">{moodScore.toFixed(1)}/10</div>
                   <div className="flex items-center text-green-600 text-sm">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +0.8
@@ -183,7 +243,7 @@ export default function Dashboard() {
                     <CheckCircle className="h-4 w-4 text-green-500" />
                   </div>
                 </div>
-                <Progress value={75} className="mt-2 h-2" />
+                <Progress value={completedActivities * 25} className="mt-2 h-2" />
               </CardContent>
             </Card>
           </motion.div>
@@ -229,9 +289,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <Link href="/dashboard/chat">
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                    Start Chatting
-                  </Button>
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700">Start Chatting</Button>
                 </Link>
               </CardContent>
             </Card>
@@ -248,15 +306,11 @@ export default function Dashboard() {
                   <BookOpen className="h-5 w-5 text-purple-500" />
                   Journal Entry
                 </CardTitle>
-                <CardDescription className="text-gray-600">
-                  Record your thoughts and feelings
-                </CardDescription>
+                <CardDescription className="text-gray-600">Record your thoughts and feelings</CardDescription>
               </CardHeader>
               <CardContent>
                 <Link href="/dashboard/journal">
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700">
-                    Write Entry
-                  </Button>
+                  <Button className="w-full bg-purple-600 hover:bg-purple-700">Write Entry</Button>
                 </Link>
               </CardContent>
             </Card>
@@ -273,15 +327,11 @@ export default function Dashboard() {
                   <BarChart3 className="h-5 w-5 text-green-500" />
                   Mood Tracker
                 </CardTitle>
-                <CardDescription className="text-gray-600">
-                  Track your emotional patterns
-                </CardDescription>
+                <CardDescription className="text-gray-600">Track your emotional patterns</CardDescription>
               </CardHeader>
               <CardContent>
                 <Link href="/dashboard/mood">
-                  <Button className="w-full bg-green-600 hover:bg-green-700">
-                    Track Mood
-                  </Button>
+                  <Button className="w-full bg-green-600 hover:bg-green-700">Track Mood</Button>
                 </Link>
               </CardContent>
             </Card>
@@ -301,22 +351,24 @@ export default function Dashboard() {
                   <BarChart3 className="h-5 w-5 text-blue-500" />
                   Weekly Mood Trends
                 </CardTitle>
-                <CardDescription className="text-gray-600">
-                  Your emotional patterns over the last 7 days
-                </CardDescription>
+                <CardDescription className="text-gray-600">Your emotional patterns over the last 7 days</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-64 flex items-end justify-between gap-2 mt-4">
-                  {moodData.map((item, index) => (
-                    <div key={index} className="flex flex-col items-center flex-1">
-                      <div className="text-xs text-gray-500 mb-1">{item.day}</div>
-                      <div 
-                        className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
-                        style={{ height: `${item.mood * 10}%` }}
-                      ></div>
-                      <div className="text-xs mt-1 text-gray-700">{item.mood}</div>
-                    </div>
-                  ))}
+                  {moodData.length > 0 ? (
+                    moodData.map((item, index) => (
+                      <div key={index} className="flex flex-col items-center flex-1">
+                        <div className="text-xs text-gray-500 mb-1">{item.day}</div>
+                        <div
+                          className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
+                          style={{ height: `${item.mood * 10}%` }}
+                        ></div>
+                        <div className="text-xs mt-1 text-gray-700">{item.mood.toFixed(1)}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-500">No mood data available yet</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -334,9 +386,7 @@ export default function Dashboard() {
                   <Target className="h-5 w-5 text-green-500" />
                   Daily Activities
                 </CardTitle>
-                <CardDescription className="text-gray-600">
-                  Complete these activities for better mental wellness
-                </CardDescription>
+                <CardDescription className="text-gray-600">Complete these activities for better mental wellness</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -354,9 +404,7 @@ export default function Dashboard() {
                         {activity.completed ? (
                           <CheckCircle className="h-5 w-5 text-green-500" />
                         ) : (
-                          <Button size="sm" className="h-7 text-xs">
-                            Start
-                          </Button>
+                          <Button size="sm" className="h-7 text-xs">Start</Button>
                         )}
                       </div>
                     </div>
@@ -379,9 +427,7 @@ export default function Dashboard() {
                 <Brain className="h-5 w-5 text-purple-500" />
                 Personalized Insights
               </CardTitle>
-              <CardDescription className="text-gray-600">
-                AI-powered insights based on your recent activities
-              </CardDescription>
+              <CardDescription className="text-gray-600">AI-powered insights based on your recent activities</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
