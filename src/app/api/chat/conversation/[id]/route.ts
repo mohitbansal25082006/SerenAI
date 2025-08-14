@@ -1,12 +1,24 @@
-// E:\serenai\src\app\api\chat\conversation\[id]\route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { type NextRequest } from 'next/server';
+
+interface MessageResponse {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+interface ConversationResponse {
+  messages: MessageResponse[];
+  title: string;
+}
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
-) {
+): Promise<NextResponse<ConversationResponse | { error: string }>> {
   try {
     const { userId } = await auth();
 
@@ -38,19 +50,25 @@ export async function GET(
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
-    const formattedMessages = conversation.messages.map(message => ({
+    const formattedMessages: MessageResponse[] = conversation.messages.map(message => ({
       id: message.id,
       role: message.role as "user" | "assistant",
       content: message.content,
       timestamp: message.createdAt.toISOString(),
     }));
 
+    // Ensure title is not null by providing a default value
+    const title = conversation.title || "Untitled Conversation";
+
     return NextResponse.json({ 
       messages: formattedMessages,
-      title: conversation.title,
+      title: title,
     });
   } catch (error) {
     console.error("Error loading conversation:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" }, 
+      { status: 500 }
+    );
   }
 }
