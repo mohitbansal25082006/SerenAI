@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { 
   ChevronLeft, 
@@ -47,6 +46,22 @@ export default function ContactSupportPage() {
       setSubject("");
       setMessage("");
     }, 1500);
+  };
+
+  const scrollToContactForm = () => {
+    const contactForm = document.getElementById("contact-form");
+    if (contactForm) {
+      contactForm.scrollIntoView({ behavior: "smooth" });
+      // Switch to the contact tab
+      const contactTab = document.querySelector('[value="contact"]') as HTMLElement;
+      if (contactTab) {
+        contactTab.click();
+      }
+    }
+  };
+
+  const handleCallUs = () => {
+    window.open("tel:+15551234567", "_self");
   };
 
   const supportTeam = [
@@ -136,11 +151,19 @@ export default function ContactSupportPage() {
                     We typically respond within 24 business hours.
                   </p>
                   <div className="flex flex-wrap gap-3">
-                    <Button variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100">
+                    <Button 
+                      variant="secondary" 
+                      className="bg-white text-blue-600 hover:bg-gray-100"
+                      onClick={scrollToContactForm}
+                    >
                       <MessageSquare className="h-4 w-4 mr-2" />
                       Send a Message
                     </Button>
-                    <Button variant="outline" className="border-white text-white hover:bg-white hover:text-blue-600">
+                    <Button 
+                      variant="outline" 
+                      className="border-white text-white bg-transparent hover:bg-white hover:text-blue-600"
+                      onClick={handleCallUs}
+                    >
                       <Phone className="h-4 w-4 mr-2" />
                       Call Us
                     </Button>
@@ -171,7 +194,7 @@ export default function ContactSupportPage() {
           {/* Contact Form Tab */}
           <TabsContent value="contact" className="mt-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2">
+              <div id="contact-form" className="lg:col-span-2">
                 <Card className="border-gray-200">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -241,7 +264,6 @@ export default function ContactSupportPage() {
                   </CardContent>
                 </Card>
               </div>
-
               <div className="space-y-6">
                 {/* Contact Information */}
                 <Card className="border-gray-200">
@@ -273,7 +295,6 @@ export default function ContactSupportPage() {
                     </div>
                   </CardContent>
                 </Card>
-
                 {/* FAQ */}
                 <Card className="border-gray-200">
                   <CardHeader>
@@ -303,7 +324,6 @@ export default function ContactSupportPage() {
                 Our dedicated team of professionals is here to provide you with the best possible support experience.
               </p>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {supportTeam.map((member, index) => (
                 <Card key={index} className="border-gray-200">
@@ -328,7 +348,6 @@ export default function ContactSupportPage() {
                 Explore these resources for additional support and information about mental health and wellness.
               </p>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Crisis Resources */}
               <Card className="border-red-200">
@@ -359,7 +378,6 @@ export default function ContactSupportPage() {
                   ))}
                 </CardContent>
               </Card>
-
               {/* Educational Resources */}
               <Card className="border-blue-200">
                 <CardHeader>

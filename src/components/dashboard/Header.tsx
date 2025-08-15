@@ -1,5 +1,7 @@
+// E:\serenai\src\components\dashboard\Header.tsx
 "use client";
-import { Bell, Home, ChevronRight, HelpCircle } from "lucide-react";
+
+import { Bell, Home, ChevronRight, HelpCircle, Users, Video, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserButton } from "@clerk/nextjs";
 import {
@@ -69,6 +71,12 @@ export default function Header() {
       else if (label === 'activities') label = 'Activities';
       else if (label === 'profile') label = 'Profile';
       else if (label === 'settings') label = 'Settings';
+      else if (label === 'faq') label = 'FAQ';
+      else if (label === 'contact-support') label = 'Contact Support';
+      else if (label === 'documentation') label = 'Documentation';
+      else if (label === 'community-forum') label = 'Community Forum';
+      else if (label === 'video-tutorials') label = 'Video Tutorials';
+      else if (label === 'webinars-workshops') label = 'Webinars & Workshops';
       else label = label.charAt(0).toUpperCase() + label.slice(1);
       
       breadcrumbs.push({
@@ -147,10 +155,29 @@ export default function Header() {
                 <Link href="/dashboard/documentation">Documentation</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
+                <Link href="/dashboard/video-tutorials">
+                  <Video className="h-4 w-4 mr-2" />
+                  Video Tutorials
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/webinars-workshops">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Webinars & Workshops
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link href="/dashboard/faq">FAQ</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/contact-support">Contact Support</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/community-forum">
+                  <Users className="h-4 w-4 mr-2" />
+                  Community Forum
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
