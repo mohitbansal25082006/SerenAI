@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ArrowLeft, History, Save, X, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { Send, Trash2, ArrowLeft, History, Save, X, Mic, MicOff, Volume2, VolumeX, Languages } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -84,6 +84,7 @@ export default function ChatPage() {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [ttsSupported, setTtsSupported] = useState(false);
+  const [ttsLanguage, setTtsLanguage] = useState('en-US');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -165,9 +166,17 @@ export default function ChatPage() {
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
+    utterance.lang = ttsLanguage;
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
+    
+    // Try to find a voice that matches the language
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find(v => v.lang.startsWith(ttsLanguage.split('-')[0]));
+    if (voice) {
+      utterance.voice = voice;
+    }
+    
     window.speechSynthesis.speak(utterance);
   };
   // Toggle text-to-speech
@@ -184,6 +193,11 @@ export default function ChatPage() {
       window.speechSynthesis.cancel();
     }
   };
+  // Toggle TTS language between English and Hindi
+  const toggleTtsLanguage = () => {
+    setTtsLanguage(prev => prev === 'en-US' ? 'hi-IN' : 'en-US');
+    toast.success(`TTS language changed to ${ttsLanguage === 'en-US' ? 'Hindi' : 'English'}`);
+  };
   // Speak assistant messages when they arrive
   useEffect(() => {
     if (messages.length > 0) {
@@ -199,7 +213,7 @@ export default function ChatPage() {
         window.speechSynthesis.cancel();
       }
     };
-  }, [messages]);
+  }, [messages, ttsLanguage]);
   const toggleListening = () => {
     if (!speechSupported) {
       toast.error('Speech recognition is not supported in your browser.');
@@ -235,7 +249,11 @@ export default function ChatPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: messageToSend, conversationId }),
+        body: JSON.stringify({ 
+          message: messageToSend, 
+          conversationId,
+          language: ttsLanguage === 'hi-IN' ? 'hindi' : 'english'
+        }),
       });
       
       if (!response.ok) throw new Error("Failed to send message");
@@ -421,6 +439,15 @@ export default function ChatPage() {
               {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
               {ttsEnabled ? "Voice On" : "Voice Off"}
             </Button>
+            <Button 
+              variant="outline" 
+              onClick={toggleTtsLanguage}
+              disabled={!ttsSupported}
+              className={`gap-2 ${ttsLanguage === 'hi-IN' ? 'bg-purple-100 text-purple-700' : ''}`}
+            >
+              <Languages className="h-4 w-4" />
+              {ttsLanguage === 'hi-IN' ? 'Hindi' : 'English'}
+            </Button>
             <Button variant="outline" onClick={handleClearChat} className="gap-2">
               <Trash2 className="h-4 w-4" />
               Clear Chat
@@ -493,6 +520,11 @@ export default function ChatPage() {
               <Badge variant="outline" className="ml-auto">
                 Online
               </Badge>
+              {ttsLanguage === 'hi-IN' && (
+                <Badge variant="outline" className="ml-2 bg-purple-100 text-purple-700">
+                  Hindi Mode
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           
@@ -558,7 +590,7 @@ export default function ChatPage() {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="Type your message..."
+                  placeholder={ttsLanguage === 'hi-IN' ? "अपना संदेश टाइप करें..." : "Type your message..."}
                   className="flex-1"
                   disabled={isLoading}
                 />
@@ -574,19 +606,19 @@ export default function ChatPage() {
               {isListening && (
                 <div className="mt-2 text-sm text-red-500 flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                  Listening... Click the microphone button to stop.
+                  {ttsLanguage === 'hi-IN' ? "सुन रहे हैं... माइक्रोफ़ोन बटन को रोकने के लिए क्लिक करें।" : "Listening... Click the microphone button to stop."}
                 </div>
               )}
               
               {!speechSupported && (
                 <div className="mt-2 text-sm text-gray-500">
-                  Speech recognition is not supported in your browser.
+                  {ttsLanguage === 'hi-IN' ? "आपके ब्राउज़र में स्पीच रिकॉग्निशन समर्थित नहीं है।" : "Speech recognition is not supported in your browser."}
                 </div>
               )}
               
               {!ttsSupported && (
                 <div className="mt-2 text-sm text-gray-500">
-                  Text-to-speech is not supported in your browser.
+                  {ttsLanguage === 'hi-IN' ? "आपके ब्राउज़र में टेक्स्ट-टू-स्पीच समर्थित नहीं है।" : "Text-to-speech is not supported in your browser."}
                 </div>
               )}
             </div>
@@ -595,7 +627,10 @@ export default function ChatPage() {
         
         <div className="mt-6 text-center text-sm text-gray-600">
           <p>
-            SerenAI is not a substitute for professional medical advice. If you&apos;re in crisis, please contact a crisis hotline or emergency services.
+            {ttsLanguage === 'hi-IN' 
+              ? "सेरेनएआई पेशेवर चिकित्सा सलाह का विकल्प नहीं है। यदि आप संकट में हैं, तो कृपया किसी संकट हॉटलाइन या आपातकालीन सेवाओं से संपर्क करें।"
+              : "SerenAI is not a substitute for professional medical advice. If you're in crisis, please contact a crisis hotline or emergency services."
+            }
           </p>
         </div>
       </div>
