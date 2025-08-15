@@ -93,12 +93,12 @@ export default function NotificationsPage() {
       NotificationService.sendSystemNotification(
         "Getting Started",
         "Complete your profile to get personalized recommendations",
-        { label: "Complete Profile", href: "/profile" }
+        { label: "Complete Profile", href: "/dashboard/profile" }
       );
       
       NotificationService.sendActivityReminder(
         "First Journal Entry",
-        "/journal"
+        "/dashboard/activities"
       );
     }
   }, [user, notifications.length]);
@@ -325,7 +325,7 @@ export default function NotificationsPage() {
                   Receive daily reminders to complete activities
                 </p>
               </div>
-              <Link href="/dashboard/settings/notifications">
+              <Link href="/dashboard/settings">
                 <Button variant="outline">
                   <Settings className="h-4 w-4 mr-2" />
                   Manage Settings
