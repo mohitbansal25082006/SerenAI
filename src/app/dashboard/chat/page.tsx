@@ -1,8 +1,7 @@
-// E:\serenai\src\app\dashboard\chat\page.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ArrowLeft, History, Save, X } from "lucide-react";
+import { Send, Trash2, ArrowLeft, History, Save, X, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,48 @@ import { Badge } from "@/components/ui/badge";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
 import { toast } from "sonner";
+
+// Define types for SpeechRecognition API
+interface SpeechRecognitionResult {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult[];
+  [index: number]: SpeechRecognitionResult[];
+}
+
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onend: () => void;
+}
+
+interface Window {
+  SpeechRecognition: {
+    new (): SpeechRecognition;
+  };
+  webkitSpeechRecognition: {
+    new (): SpeechRecognition;
+  };
+}
 
 interface Message {
   id: string;
@@ -48,10 +89,44 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { collapsed } = useSidebar();
+
+  // Check if browser supports speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as unknown as Window).SpeechRecognition || 
+                               (window as unknown as Window).webkitSpeechRecognition;
+      setSpeechSupported(!!SpeechRecognition);
+      
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = false;
+        recognitionRef.current.interimResults = false;
+        recognitionRef.current.lang = 'en-US';
+        
+        recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+          const transcript = event.results[0][0].transcript;
+          setInputValue(transcript);
+        };
+        
+        recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
+          console.error('Speech recognition error', event.error);
+          setIsListening(false);
+          toast.error('Speech recognition error. Please try again.');
+        };
+        
+        recognitionRef.current.onend = () => {
+          setIsListening(false);
+        };
+      }
+    }
+  }, []);
 
   // Load conversation history
   const loadConversations = async () => {
@@ -85,6 +160,21 @@ export default function ChatPage() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  const toggleListening = () => {
+    if (!speechSupported) {
+      toast.error('Speech recognition is not supported in your browser.');
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+      setInputValue('');
+    }
+  };
 
   const handleSendMessage = async () => {
     if (inputValue.trim() === "" || isLoading) return;
@@ -295,7 +385,7 @@ export default function ChatPage() {
             </Button>
           </div>
         </div>
-
+        
         {showHistory && (
           <Card className="mb-6">
             <CardHeader>
@@ -350,7 +440,7 @@ export default function ChatPage() {
             </CardContent>
           </Card>
         )}
-
+        
         <Card className="h-[calc(100vh-200px)] flex flex-col">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
@@ -363,6 +453,7 @@ export default function ChatPage() {
               </Badge>
             </CardTitle>
           </CardHeader>
+          
           <CardContent className="flex-1 overflow-hidden flex flex-col">
             <div className="flex-1 overflow-y-auto pr-2 space-y-4 mb-4">
               <AnimatePresence>
@@ -411,6 +502,15 @@ export default function ChatPage() {
             
             <div className="border-t border-gray-200 pt-4">
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleListening}
+                  disabled={!speechSupported}
+                  className={isListening ? "bg-red-100 text-red-600" : ""}
+                >
+                  {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                </Button>
                 <Input
                   ref={inputRef}
                   value={inputValue}
@@ -428,6 +528,19 @@ export default function ChatPage() {
                   <Send className="h-5 w-5" />
                 </Button>
               </div>
+              
+              {isListening && (
+                <div className="mt-2 text-sm text-red-500 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                  Listening... Click the microphone button to stop.
+                </div>
+              )}
+              
+              {!speechSupported && (
+                <div className="mt-2 text-sm text-gray-500">
+                  Speech recognition is not supported in your browser.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
