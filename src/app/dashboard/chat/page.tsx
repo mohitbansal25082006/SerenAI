@@ -262,6 +262,7 @@ export default function ChatPage() {
       
       if (data.conversationId && !conversationId) {
         setConversationId(data.conversationId);
+        // Removed automatic loading of conversations here to prevent duplicates
       }
       
       const assistantMessage: Message = {
@@ -272,10 +273,6 @@ export default function ChatPage() {
       };
       
       setMessages((prev) => [...prev, assistantMessage]);
-      
-      if (!conversationId) {
-        loadConversations();
-      }
     } catch (error) {
       console.error("Error sending message:", error);
       setMessages((prev) => [...prev, {
@@ -313,21 +310,37 @@ export default function ChatPage() {
     setIsSaving(true);
     
     try {
-      const title = messages.length > 1 
-        ? `${messages[1].content.substring(0, 30)}${messages[1].content.length > 30 ? '...' : ''}`
-        : 'Conversation';
+      // Generate a more representative title from the entire conversation
+      let title = 'Conversation';
+      if (messages.length > 1) {
+        // Get the first user message
+        const firstUserMsg = messages.find(m => m.role === 'user')?.content || '';
+        // Get the last assistant message
+        const lastAssistantMsg = messages.slice().reverse().find(m => m.role === 'assistant')?.content || '';
+        
+        // Truncate each part to 20 characters
+        const truncatedFirst = firstUserMsg.length > 20 ? firstUserMsg.substring(0, 20) + '...' : firstUserMsg;
+        const truncatedLast = lastAssistantMsg.length > 20 ? lastAssistantMsg.substring(0, 20) + '...' : lastAssistantMsg;
+        
+        // Combine to create a representative title
+        title = `${truncatedFirst} → ${truncatedLast}`;
+      }
       
       const response = await fetch('/api/chat/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, title }),
+        body: JSON.stringify({ 
+          messages, 
+          title,
+          conversationId // Include conversationId if it exists to update existing conversation
+        }),
       });
       
       if (response.ok) {
         toast.success('Conversation saved successfully!');
         const data = await response.json();
         setConversationId(data.conversationId);
-        loadConversations();
+        loadConversations(); // Only load conversations after explicit save
       } else {
         toast.error('Failed to save conversation.');
       }
