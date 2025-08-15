@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -56,7 +55,6 @@ export default function MoodPage() {
     note: "",
   });
   const [isLoading, setIsLoading] = useState(true);
-
   const { collapsed } = useSidebar();
 
   // Fetch mood records and normalize
@@ -85,25 +83,21 @@ export default function MoodPage() {
         setIsLoading(false);
       }
     };
-
     fetchRecords();
   }, []);
 
   const handleSaveRecord = async () => {
     setIsLoading(true);
-
     try {
       const payload = {
         mood: currentRecord.mood,
         note: currentRecord.note,
       };
-
       const response = await fetch("/api/mood", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (response.ok) {
         // refresh normalized data
         const fetchResponse = await fetch("/api/mood");
@@ -132,7 +126,6 @@ export default function MoodPage() {
 
   const handleDeleteRecord = async (id: string) => {
     if (!confirm("Are you sure you want to delete this record?")) return;
-
     try {
       const response = await fetch(`/api/mood/${id}`, { method: "DELETE" });
       if (response.ok) {
@@ -261,7 +254,6 @@ export default function MoodPage() {
                   ))}
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-2">Notes (optional)</label>
                 <Textarea
@@ -271,7 +263,6 @@ export default function MoodPage() {
                   rows={3}
                 />
               </div>
-
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsAdding(false)}>
                   Cancel
@@ -298,7 +289,6 @@ export default function MoodPage() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">Total Records</CardTitle>
@@ -308,7 +298,6 @@ export default function MoodPage() {
               <p className="text-sm text-gray-500 mt-2">Keep tracking to see patterns</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">Current Streak</CardTitle>
@@ -328,17 +317,31 @@ export default function MoodPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-end justify-between gap-2 mt-4">
-              {last7Days.map((day, index) => (
-                <div key={day.dateKey} className="flex flex-col items-center flex-1">
-                  <div className="text-xs text-gray-500 mb-1">{day.dayName}</div>
-                  <div
-                    className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
-                    style={{ height: `${day.avgMood * 10}%` }}
-                  />
-                  <div className="text-xs mt-1 text-gray-700">{day.avgMood.toFixed(1)}</div>
+            <div className="h-64 flex flex-col mt-4">
+              {/* Y-axis labels */}
+              <div className="flex h-full">
+                <div className="flex flex-col justify-between text-xs text-gray-500 pr-2">
+                  <span>10</span>
+                  <span>7.5</span>
+                  <span>5</span>
+                  <span>2.5</span>
+                  <span>0</span>
                 </div>
-              ))}
+                
+                {/* Chart area */}
+                <div className="flex-1 flex items-end justify-between gap-2 border-l border-b border-gray-200">
+                  {last7Days.map((day, index) => (
+                    <div key={day.dateKey} className="flex flex-col items-center flex-1 h-full justify-end">
+                      <div className="text-xs text-gray-500 mb-1">{day.dayName}</div>
+                      <div 
+                        className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
+                        style={{ height: `${(day.avgMood / 10) * 100}%`, minHeight: '4px' }}
+                      ></div>
+                      <div className="text-xs mt-1 text-gray-700">{day.avgMood.toFixed(1)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -360,7 +363,6 @@ export default function MoodPage() {
         ) : (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Recent Records</h2>
-
             {records.slice(0, 10).map((record) => {
               const moodEmoji = moodEmojis.find((m) => m.value === Math.round(record.mood));
               return (
