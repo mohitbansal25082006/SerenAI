@@ -5,20 +5,14 @@ interface UserSettings {
   notificationsEnabled: boolean;
   emailReminders: boolean;
   dailyDigest: boolean;
-  dataSharing: boolean;
-  language: string;
-  reminderTime?: string; // "HH:MM" format
-  digestTime?: string;   // "HH:MM" format
-}
-
-interface NotificationAction {
-  label: string;
-  href: string;
+  reminderTime: string; // "HH:MM" format
+  digestTime: string;   // "HH:MM" format
+  activityReminders: boolean;
 }
 
 interface ScheduledTask {
   id: string;
-  type: 'reminder' | 'digest' | 'activity' | 'achievement';
+  type: 'reminder' | 'digest' | 'activity';
   scheduledTime: Date;
   callback: () => void;
 }
@@ -31,8 +25,7 @@ export class NotificationScheduler {
     notificationsEnabled: true,
     emailReminders: true,
     dailyDigest: true,
-    dataSharing: false,
-    language: 'en',
+    activityReminders: true,
     reminderTime: '09:00',
     digestTime: '20:00'
   };
@@ -51,43 +44,40 @@ export class NotificationScheduler {
   }
 
   private initialize(): void {
-    this.loadUserSettings();
+    this.loadSettings();
     this.setupSchedulers();
     this.setupStorageListener();
   }
 
-  private loadUserSettings(): void {
+  private loadSettings(): void {
     try {
       const settings = localStorage.getItem('serenai-notification-settings');
       if (settings) {
-        const parsedSettings = JSON.parse(settings) as Partial<UserSettings>;
-        this.userSettings = { ...this.userSettings, ...parsedSettings };
+        this.userSettings = { ...this.userSettings, ...JSON.parse(settings) };
       }
     } catch (error) {
-      console.error('Error loading user settings:', error);
+      console.error('Error loading notification settings:', error);
     }
   }
 
-  private saveUserSettings(): void {
+  private saveSettings(): void {
     try {
       localStorage.setItem(
         'serenai-notification-settings',
         JSON.stringify(this.userSettings)
       );
     } catch (error) {
-      console.error('Error saving user settings:', error);
+      console.error('Error saving notification settings:', error);
     }
   }
 
   private setupStorageListener(): void {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', (event) => {
-        if (event.key === 'serenai-notification-settings') {
-          this.loadUserSettings();
-          this.reschedule();
-        }
-      });
-    }
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'serenai-notification-settings') {
+        this.loadSettings();
+        this.reschedule();
+      }
+    });
   }
 
   private setupSchedulers(): void {
@@ -103,24 +93,25 @@ export class NotificationScheduler {
       this.scheduleDailyDigest();
     }
 
-    this.scheduleActivityReminders();
+    if (this.userSettings.activityReminders) {
+      this.scheduleActivityReminders();
+    }
+
     this.scheduleWeeklySummary();
-    this.scheduleMonthlyAchievementsCheck();
+    this.scheduleMonthlyAchievements();
   }
 
   private scheduleDailyReminder(): void {
-    const [hours, minutes] = (this.userSettings.reminderTime || '09:00').split(':').map(Number);
-    const scheduledTime = this.getNextScheduledTime(hours, minutes);
+    const [hours, minutes] = this.userSettings.reminderTime.split(':').map(Number);
+    const scheduledTime = this.getNextDailyTime(hours, minutes);
 
     const task: ScheduledTask = {
       id: `daily-reminder-${scheduledTime.getTime()}`,
       type: 'reminder',
       scheduledTime,
       callback: () => {
-        if (!NotificationService.sendDailyReminder()) {
-          console.warn('Failed to send daily reminder - possible duplicate');
-        }
-        this.scheduleDailyReminder(); // Reschedule for next day
+        NotificationService.sendDailyReminder();
+        this.scheduleDailyReminder(); // Reschedule
       }
     };
 
@@ -128,8 +119,8 @@ export class NotificationScheduler {
   }
 
   private scheduleDailyDigest(): void {
-    const [hours, minutes] = (this.userSettings.digestTime || '20:00').split(':').map(Number);
-    const scheduledTime = this.getNextScheduledTime(hours, minutes);
+    const [hours, minutes] = this.userSettings.digestTime.split(':').map(Number);
+    const scheduledTime = this.getNextDailyTime(hours, minutes);
 
     const task: ScheduledTask = {
       id: `daily-digest-${scheduledTime.getTime()}`,
@@ -139,9 +130,9 @@ export class NotificationScheduler {
         NotificationService.sendSystemNotification(
           "Daily Digest",
           "Here's your daily wellness summary",
-          { label: "View Summary", href: "/dashboard/insights" }
+          { label: "View Insights", href: "/dashboard/insights" }
         );
-        this.scheduleDailyDigest(); // Reschedule for next day
+        this.scheduleDailyDigest(); // Reschedule
       }
     };
 
@@ -150,13 +141,13 @@ export class NotificationScheduler {
 
   private scheduleActivityReminders(): void {
     const activities = [
-      { hour: 10, type: "breathing", href: "/dashboard/activities/breathing" },
-      { hour: 14, type: "mindfulness", href: "/dashboard/activities/mindfulness" },
-      { hour: 16, type: "mood check", href: "/dashboard/mood" }
+      { hour: 10, type: "morning meditation", href: "/meditation" },
+      { hour: 14, type: "afternoon mindfulness", href: "/mindfulness" },
+      { hour: 18, type: "evening reflection", href: "/journal" }
     ];
 
     activities.forEach((activity, index) => {
-      const scheduledTime = this.getNextScheduledTime(activity.hour, 0);
+      const scheduledTime = this.getNextDailyTime(activity.hour, 0);
       
       const task: ScheduledTask = {
         id: `activity-${index}-${scheduledTime.getTime()}`,
@@ -164,7 +155,7 @@ export class NotificationScheduler {
         scheduledTime,
         callback: () => {
           NotificationService.sendActivityReminder(activity.type, activity.href);
-          this.scheduleActivityReminders(); // Reschedule all activities
+          this.scheduleActivityReminders(); // Reschedule all
         }
       };
 
@@ -184,33 +175,33 @@ export class NotificationScheduler {
         NotificationService.sendSystemNotification(
           "Weekly Summary",
           "Review your weekly wellness progress",
-          { label: "View Insights", href: "/dashboard/insights" }
+          { label: "View Report", href: "/dashboard/reports" }
         );
-        this.scheduleWeeklySummary(); // Reschedule for next week
+        this.scheduleWeeklySummary(); // Reschedule
       }
     };
 
     this.scheduleTask(task);
   }
 
-  private scheduleMonthlyAchievementsCheck(): void {
+  private scheduleMonthlyAchievements(): void {
     // Schedule for first day of next month at 9:00 AM
     const scheduledTime = this.getNextMonthlyTime(1, 9, 0);
 
     const task: ScheduledTask = {
-      id: `monthly-check-${scheduledTime.getTime()}`,
-      type: 'achievement',
+      id: `monthly-achievements-${scheduledTime.getTime()}`,
+      type: 'reminder',
       scheduledTime,
       callback: () => {
-        this.checkAndSendAchievements();
-        this.scheduleMonthlyAchievementsCheck(); // Reschedule for next month
+        NotificationService.sendAchievement("You've completed another month of wellness activities!");
+        this.scheduleMonthlyAchievements(); // Reschedule
       }
     };
 
     this.scheduleTask(task);
   }
 
-  private getNextScheduledTime(hours: number, minutes: number): Date {
+  private getNextDailyTime(hours: number, minutes: number): Date {
     const now = new Date();
     const scheduledTime = new Date();
     scheduledTime.setHours(hours, minutes, 0, 0);
@@ -241,6 +232,10 @@ export class NotificationScheduler {
     scheduledTime.setMonth(now.getMonth() + 1, dayOfMonth);
     scheduledTime.setHours(hours, minutes, 0, 0);
 
+    if (scheduledTime <= now) {
+      scheduledTime.setMonth(scheduledTime.getMonth() + 1);
+    }
+
     return scheduledTime;
   }
 
@@ -254,7 +249,11 @@ export class NotificationScheduler {
     }
 
     const timeoutId = setTimeout(() => {
-      task.callback();
+      try {
+        task.callback();
+      } catch (error) {
+        console.error(`Error executing task ${task.id}:`, error);
+      }
       this.removeTask(task.id);
     }, timeUntilScheduled);
 
@@ -266,20 +265,15 @@ export class NotificationScheduler {
     this.scheduledTasks = this.scheduledTasks.filter(task => task.id !== id);
   }
 
-  private checkAndSendAchievements(): void {
-    try {
-      const notifications = NotificationService.getNotifications();
-      const hasMonthlyAchievement = notifications.some(
-        n => n.type === "achievement" && 
-             n.timestamp.getDate() === new Date().getDate()
-      );
-      
-      if (!hasMonthlyAchievement) {
-        NotificationService.sendAchievement("completed another month of wellness activities!");
-      }
-    } catch (error) {
-      console.error('Error checking achievements:', error);
-    }
+  public updateSettings(newSettings: Partial<UserSettings>): void {
+    this.userSettings = { ...this.userSettings, ...newSettings };
+    this.saveSettings();
+    this.reschedule();
+  }
+
+  public reschedule(): void {
+    this.cleanup();
+    this.setupSchedulers();
   }
 
   public cleanup(): void {
@@ -288,64 +282,12 @@ export class NotificationScheduler {
     this.scheduledTasks = [];
   }
 
-  public reschedule(): void {
-    this.cleanup();
-    this.setupSchedulers();
-  }
-
-  public updateSettings(newSettings: Partial<UserSettings>): void {
-    this.userSettings = { ...this.userSettings, ...newSettings };
-    this.saveUserSettings();
-    this.reschedule();
-  }
-
   public getCurrentSettings(): UserSettings {
     return { ...this.userSettings };
   }
 
-  public sendTestNotification(): boolean {
-    return NotificationService.sendSystemNotification(
-      "Test Notification",
-      "This is a test notification from SerenAI",
-      { label: "Go to Dashboard", href: "/dashboard" }
-    );
-  }
-
-  public scheduleCustomReminder(
-    title: string,
-    message: string,
-    time: Date,
-    action?: NotificationAction
-  ): string {
-    const taskId = `custom-${time.getTime()}`;
-    
-    const task: ScheduledTask = {
-      id: taskId,
-      type: 'reminder',
-      scheduledTime: time,
-      callback: () => {
-        NotificationService.addNotification({
-          title,
-          message,
-          type: "reminder",
-          icon: "Clock",
-          action
-        });
-      }
-    };
-
-    this.scheduleTask(task);
-    return taskId;
-  }
-
-  public cancelScheduledTask(taskId: string): boolean {
-    const taskIndex = this.scheduledTasks.findIndex(task => task.id === taskId);
-    if (taskIndex === -1) return false;
-
-    clearTimeout(this.intervals[taskIndex]);
-    this.intervals.splice(taskIndex, 1);
-    this.scheduledTasks.splice(taskIndex, 1);
-    return true;
+  public getScheduledTasks(): ScheduledTask[] {
+    return [...this.scheduledTasks];
   }
 }
 

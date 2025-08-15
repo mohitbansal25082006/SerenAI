@@ -13,7 +13,8 @@ import {
   MessageSquare,
   Trash2,
   Settings,
-  Star
+  Star,
+  CheckCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,21 +23,7 @@ import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { useNotifications } from "@/hooks/useNotifications";
-import { NotificationScheduler } from "@/lib/scheduler";
-
-interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  type: "info" | "reminder" | "achievement" | "system";
-  timestamp: Date;
-  read: boolean;
-  icon?: string;
-  action?: {
-    label: string;
-    href: string;
-  };
-}
+import { NotificationService } from "@/lib/notifications";
 
 export default function NotificationsPage() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -99,15 +86,38 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && user) {
-      const scheduler = NotificationScheduler.getInstance();
+    if (typeof window !== 'undefined' && user && notifications.length === 0) {
+      NotificationService.sendWelcomeNotification(user.fullName || undefined);
       
-      // Send test notification if no notifications exist
-      if (notifications.length === 0) {
-        scheduler.sendTestNotification();
-      }
+      // Add initial sample notifications
+      NotificationService.sendSystemNotification(
+        "Getting Started",
+        "Complete your profile to get personalized recommendations",
+        { label: "Complete Profile", href: "/profile" }
+      );
+      
+      NotificationService.sendActivityReminder(
+        "First Journal Entry",
+        "/journal"
+      );
     }
   }, [user, notifications.length]);
+
+  const handleMarkAllAsRead = () => {
+    markAllAsRead();
+    NotificationService.sendSystemNotification(
+      "Notifications Cleared",
+      "All notifications have been marked as read"
+    );
+  };
+
+  const handleClearAll = () => {
+    clearAll();
+    NotificationService.sendSystemNotification(
+      "Notifications Cleared",
+      "All notifications have been removed"
+    );
+  };
 
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
@@ -125,25 +135,27 @@ export default function NotificationsPage() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={markAllAsRead}
+              onClick={handleMarkAllAsRead}
               disabled={notifications.every(n => n.read)}
             >
+              <CheckCircle className="h-4 w-4 mr-2" />
               Mark all as read
             </Button>
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={clearAll}
+              onClick={handleClearAll}
               disabled={notifications.length === 0}
             >
+              <Trash2 className="h-4 w-4 mr-2" />
               Clear all
             </Button>
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card className="bg-white/80 backdrop-blur-md border-gray-200">
+          <Card className="bg-white/80 backdrop-blur-md border-gray-200 hover:shadow-md transition-shadow">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -155,7 +167,7 @@ export default function NotificationsPage() {
             </CardContent>
           </Card>
           
-          <Card className="bg-white/80 backdrop-blur-md border-gray-200">
+          <Card className="bg-white/80 backdrop-blur-md border-gray-200 hover:shadow-md transition-shadow">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -173,7 +185,7 @@ export default function NotificationsPage() {
             </CardContent>
           </Card>
           
-          <Card className="bg-white/80 backdrop-blur-md border-gray-200">
+          <Card className="bg-white/80 backdrop-blur-md border-gray-200 hover:shadow-md transition-shadow">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -201,7 +213,7 @@ export default function NotificationsPage() {
         </Tabs>
 
         {/* Notifications List */}
-        <div className="space-y-4">
+        <div className="space-y-4 mt-6">
           {filteredNotifications.length > 0 ? (
             filteredNotifications.map((notification) => (
               <motion.div
@@ -209,7 +221,7 @@ export default function NotificationsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className={`p-4 rounded-lg border transition-all ${
+                className={`p-4 rounded-lg border transition-all hover:shadow-md ${
                   notification.read 
                     ? "bg-white border-gray-200" 
                     : `${getNotificationColor(notification.type)} border-l-4`
@@ -276,7 +288,7 @@ export default function NotificationsPage() {
               </motion.div>
             ))
           ) : (
-            <Card className="text-center py-12">
+            <Card className="text-center py-12 hover:shadow-md transition-shadow">
               <CardContent>
                 <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">No notifications</h3>
@@ -286,13 +298,16 @@ export default function NotificationsPage() {
                     : "You don't have any notifications yet."
                   }
                 </p>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Refresh
+                </Button>
               </CardContent>
             </Card>
           )}
         </div>
 
         {/* Notification Settings */}
-        <Card className="mt-8">
+        <Card className="mt-8 hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -310,8 +325,9 @@ export default function NotificationsPage() {
                   Receive daily reminders to complete activities
                 </p>
               </div>
-              <Link href="/dashboard/settings">
+              <Link href="/dashboard/settings/notifications">
                 <Button variant="outline">
+                  <Settings className="h-4 w-4 mr-2" />
                   Manage Settings
                 </Button>
               </Link>
@@ -320,13 +336,13 @@ export default function NotificationsPage() {
         </Card>
 
         {/* Quick Actions */}
-        <Card className="mt-8">
+        <Card className="mt-8 hover:shadow-md transition-shadow">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
                 <h3 className="font-medium mb-2 flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-blue-600" />
                   Journal Entry
@@ -341,7 +357,7 @@ export default function NotificationsPage() {
                 </Button>
               </div>
               
-              <div className="p-4 bg-green-50 rounded-lg">
+              <div className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
                 <h3 className="font-medium mb-2 flex items-center gap-2">
                   <Activity className="h-5 w-5 text-green-600" />
                   Wellness Activities
@@ -356,7 +372,7 @@ export default function NotificationsPage() {
                 </Button>
               </div>
               
-              <div className="p-4 bg-purple-50 rounded-lg">
+              <div className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
                 <h3 className="font-medium mb-2 flex items-center gap-2">
                   <BarChart3 className="h-5 w-5 text-purple-600" />
                   Mood Tracking
@@ -371,7 +387,7 @@ export default function NotificationsPage() {
                 </Button>
               </div>
               
-              <div className="p-4 bg-yellow-50 rounded-lg">
+              <div className="p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
                 <h3 className="font-medium mb-2 flex items-center gap-2">
                   <MessageSquare className="h-5 w-5 text-yellow-600" />
                   AI Chat

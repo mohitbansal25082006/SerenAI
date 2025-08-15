@@ -19,9 +19,12 @@ interface SerializedNotification extends Omit<Notification, 'timestamp'> {
 
 export class NotificationService {
   private static MAX_NOTIFICATIONS = 200;
-  private static STORAGE_KEY = 'serenai-notifications';
-  private static MIN_DUPLICATE_INTERVAL = 30000; // 30 seconds
+  private static STORAGE_KEY = 'serenai-notifications-v2';
+  private static DUPLICATE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
+  /**
+   * Get all notifications from storage
+   */
   static getNotifications(): Notification[] {
     if (typeof window === 'undefined') return [];
     
@@ -32,17 +35,15 @@ export class NotificationService {
       const parsed: SerializedNotification[] = JSON.parse(stored);
       
       return parsed
-        .map(notification => ({
-          ...notification,
-          timestamp: new Date(notification.timestamp)
+        .map(n => ({
+          ...n,
+          timestamp: new Date(n.timestamp)
         }))
-        .filter(notification => 
-          notification.id &&
-          notification.title &&
-          notification.message &&
-          !isNaN(notification.timestamp.getTime()) &&
-          notification.type &&
-          notification.icon
+        .filter(n => 
+          n.id &&
+          n.title &&
+          n.message &&
+          !isNaN(n.timestamp.getTime())
         )
         .slice(0, this.MAX_NOTIFICATIONS);
     } catch (error) {
@@ -51,15 +52,18 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Save notifications to storage
+   */
   private static saveNotifications(notifications: Notification[]): void {
     if (typeof window === 'undefined') return;
     
     try {
       const serialized: SerializedNotification[] = notifications
         .slice(0, this.MAX_NOTIFICATIONS)
-        .map(notification => ({
-          ...notification,
-          timestamp: notification.timestamp.toISOString()
+        .map(n => ({
+          ...n,
+          timestamp: n.timestamp.toISOString()
         }));
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(serialized));
@@ -68,27 +72,33 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Add a new notification
+   */
   static addNotification(notification: Omit<Notification, 'id' | 'timestamp' | 'read'>): boolean {
     try {
       const notifications = this.getNotifications();
       
-      // Check for duplicates based on title, message and recent timestamp
+      // Check for duplicates within the time window
       const isDuplicate = notifications.some(n => 
         n.title === notification.title &&
         n.message === notification.message &&
-        Date.now() - n.timestamp.getTime() < this.MIN_DUPLICATE_INTERVAL
+        Date.now() - n.timestamp.getTime() < this.DUPLICATE_WINDOW_MS
       );
       
-      if (isDuplicate) return false;
+      if (isDuplicate) {
+        console.log('Skipping duplicate notification:', notification.title);
+        return false;
+      }
       
       const newNotification: Notification = {
         ...notification,
-        id: this.generateUniqueId(),
+        id: this.generateId(),
         timestamp: new Date(),
         read: false
       };
       
-      // Add to beginning of array (newest first) and save
+      // Add to beginning of array (newest first)
       this.saveNotifications([newNotification, ...notifications]);
       return true;
     } catch (error) {
@@ -97,11 +107,13 @@ export class NotificationService {
     }
   }
 
-  private static generateUniqueId(): string {
-    // Combines timestamp, random string, and counter to ensure uniqueness
-    return `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}-${performance.now().toString(36).replace('.', '')}`;
+  private static generateId(): string {
+    return `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
+  /**
+   * Mark a notification as read
+   */
   static markAsRead(id: string): boolean {
     try {
       const notifications = this.getNotifications();
@@ -109,13 +121,10 @@ export class NotificationService {
       
       if (index === -1) return false;
       
-      const updatedNotifications = [...notifications];
-      updatedNotifications[index] = {
-        ...updatedNotifications[index],
-        read: true
-      };
+      const updated = [...notifications];
+      updated[index] = { ...updated[index], read: true };
       
-      this.saveNotifications(updatedNotifications);
+      this.saveNotifications(updated);
       return true;
     } catch (error) {
       console.error("Error marking notification as read:", error);
@@ -123,6 +132,9 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Mark all notifications as read
+   */
   static markAllAsRead(): void {
     try {
       const notifications = this.getNotifications().map(n => ({
@@ -135,6 +147,9 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Delete a notification
+   */
   static deleteNotification(id: string): boolean {
     try {
       const notifications = this.getNotifications().filter(n => n.id !== id);
@@ -146,6 +161,9 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Clear all notifications
+   */
   static clearAll(): void {
     try {
       localStorage.removeItem(this.STORAGE_KEY);
@@ -154,38 +172,60 @@ export class NotificationService {
     }
   }
 
+  /**
+   * Get count of unread notifications
+   */
   static getUnreadCount(): number {
     return this.getNotifications().filter(n => !n.read).length;
   }
 
+  /**
+   * Get recent notifications (sorted by newest first)
+   */
   static getRecentNotifications(limit: number = 5): Notification[] {
     return this.getNotifications()
-      .slice(0, limit)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .slice(0, limit);
   }
 
   // Specific notification types
-  static sendDailyReminder(): boolean {
+
+  static sendWelcomeNotification(userName?: string): boolean {
     return this.addNotification({
-      title: "Daily Reminder",
-      message: "Don't forget to complete your journal entry for today.",
-      type: "reminder",
-      icon: "Clock",
+      title: "Welcome to SerenAI!",
+      message: userName 
+        ? `Welcome back, ${userName}! Start your wellness journey.` 
+        : "Welcome to SerenAI! Begin exploring your wellness features.",
+      type: "info",
+      icon: "Bell",
       action: {
-        label: "Write Entry",
-        href: "/dashboard/journal"
+        label: "Get Started",
+        href: "/dashboard"
       }
     });
   }
 
-  static sendActivityReminder(activityType: string, href: string = "/dashboard/activities"): boolean {
+  static sendDailyReminder(): boolean {
+    return this.addNotification({
+      title: "Daily Check-in Reminder",
+      message: "Don't forget to complete your daily wellness check-in",
+      type: "reminder",
+      icon: "Clock",
+      action: {
+        label: "Check In",
+        href: "/dashboard/checkin"
+      }
+    });
+  }
+
+  static sendActivityReminder(activityName: string, href: string): boolean {
     return this.addNotification({
       title: "Activity Reminder",
-      message: `Time for your ${activityType} activity! Take a moment for your wellness.`,
+      message: `Time for your ${activityName} activity!`,
       type: "reminder",
       icon: "Activity",
       action: {
-        label: "Start Activity",
+        label: "Start Now",
         href
       }
     });
@@ -200,7 +240,11 @@ export class NotificationService {
     });
   }
 
-  static sendSystemNotification(title: string, message: string, action?: { label: string; href: string }): boolean {
+  static sendSystemNotification(
+    title: string, 
+    message: string, 
+    action?: { label: string; href: string }
+  ): boolean {
     return this.addNotification({
       title,
       message,
@@ -210,17 +254,15 @@ export class NotificationService {
     });
   }
 
-  static sendWelcomeNotification(userName?: string): boolean {
+  static sendTherapistMessage(therapistName: string): boolean {
     return this.addNotification({
-      title: "Welcome to SerenAI!",
-      message: userName 
-        ? `Welcome back, ${userName}! Start your wellness journey.`
-        : "Welcome to SerenAI! Explore your wellness features.",
+      title: "New Message",
+      message: `You have a new message from ${therapistName}`,
       type: "info",
-      icon: "Bell",
+      icon: "MessageSquare",
       action: {
-        label: "Get Started",
-        href: "/dashboard"
+        label: "View Messages",
+        href: "/dashboard/messages"
       }
     });
   }
