@@ -505,17 +505,31 @@ export default function Dashboard(): React.ReactElement {
                 <CardDescription className="text-gray-600">Your emotional patterns over the last 7 days</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-64 flex items-end justify-between gap-2 mt-4">
-                  {chartData.map((item, index) => (
-                    <div key={index} className="flex flex-col items-center flex-1">
-                      <div className="text-xs text-gray-500 mb-1">{item.day}</div>
-                      <div 
-                        className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
-                        style={{ height: `${item.mood * 10}%` }}
-                      ></div>
-                      <div className="text-xs mt-1 text-gray-700">{item.mood.toFixed(1)}</div>
+                <div className="h-64 flex flex-col mt-4">
+                  {/* Y-axis labels */}
+                  <div className="flex h-full">
+                    <div className="flex flex-col justify-between text-xs text-gray-500 pr-2">
+                      <span>10</span>
+                      <span>7.5</span>
+                      <span>5</span>
+                      <span>2.5</span>
+                      <span>0</span>
                     </div>
-                  ))}
+                    
+                    {/* Chart area */}
+                    <div className="flex-1 flex items-end justify-between gap-2 border-l border-b border-gray-200">
+                      {chartData.map((item, index) => (
+                        <div key={index} className="flex flex-col items-center flex-1 h-full justify-end">
+                          <div className="text-xs text-gray-500 mb-1">{item.day}</div>
+                          <div 
+                            className="w-full bg-gradient-to-t from-blue-500 to-blue-300 rounded-t-lg transition-all duration-500 hover:from-blue-400 hover:to-blue-200"
+                            style={{ height: `${(item.mood / 10) * 100}%`, minHeight: '4px' }}
+                          ></div>
+                          <div className="text-xs mt-1 text-gray-700">{item.mood.toFixed(1)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
