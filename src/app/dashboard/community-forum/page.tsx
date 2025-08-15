@@ -21,7 +21,21 @@ import {
   CheckCircle,
   Flame,
   Eye,
-  HelpCircle
+  HelpCircle,
+  X,
+  Save,
+  FileText,
+  Star,
+  MessageCircle,
+  Hash,
+  User,
+  Settings,
+  LogOut,
+  Bell,
+  Home,
+  BookOpen,
+  BarChart3,
+  Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +45,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ForumPost {
   id: string;
@@ -51,6 +69,7 @@ interface ForumPost {
   isLocked: boolean;
   isSolved: boolean;
   trending: boolean;
+  isSaved?: boolean;
 }
 
 interface ForumCategory {
@@ -66,7 +85,19 @@ export default function CommunityForumPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState("latest");
+  const [savedPosts, setSavedPosts] = useState<string[]>([]);
+  const [isNewPostModalOpen, setIsNewPostModalOpen] = useState(false);
+  const [isGuidelinesModalOpen, setIsGuidelinesModalOpen] = useState(false);
+  const [selectedTrendingTopic, setSelectedTrendingTopic] = useState<string | null>(null);
   const { collapsed } = useSidebar();
+
+  const [newPost, setNewPost] = useState({
+    title: "",
+    content: "",
+    category: "general",
+    tags: [] as string[],
+    currentTag: ""
+  });
 
   const categories: ForumCategory[] = [
     { 
@@ -79,7 +110,7 @@ export default function CommunityForumPage() {
     },
     { 
       id: "general", 
-      name: "General Discussion", 
+      name: "General", 
       description: "General talk about SerenAI", 
       icon: <MessageSquare className="h-5 w-5" />, 
       color: "bg-gray-100 text-gray-800",
@@ -87,7 +118,7 @@ export default function CommunityForumPage() {
     },
     { 
       id: "features", 
-      name: "Features & Updates", 
+      name: "Features", 
       description: "Discuss new features and updates", 
       icon: <TrendingUp className="h-5 w-5" />, 
       color: "bg-green-100 text-green-800",
@@ -95,7 +126,7 @@ export default function CommunityForumPage() {
     },
     { 
       id: "support", 
-      name: "Help & Support", 
+      name: "Support", 
       description: "Get help from the community", 
       icon: <HelpCircle className="h-5 w-5" />, 
       color: "bg-purple-100 text-purple-800",
@@ -103,7 +134,7 @@ export default function CommunityForumPage() {
     },
     { 
       id: "feedback", 
-      name: "Feedback & Ideas", 
+      name: "Feedback", 
       description: "Share your feedback and ideas", 
       icon: <Heart className="h-5 w-5" />, 
       color: "bg-pink-100 text-pink-800",
@@ -111,7 +142,23 @@ export default function CommunityForumPage() {
     },
   ];
 
-  const forumPosts: ForumPost[] = [
+  const trendingTopics = [
+    "#MoodTracking", "#JournalingTips", "#Mindfulness", "#AnxietySupport", "#SelfCare",
+    "#Meditation", "#Therapy", "#WellnessJourney", "#MentalHealth", "#SelfImprovement"
+  ];
+
+  const communityGuidelines = [
+    "Be respectful and kind to all community members",
+    "Share your experiences and support others on their journey",
+    "No spam or self-promotion without permission",
+    "Respect privacy and confidentiality",
+    "Report inappropriate content to moderators",
+    "Use appropriate language and avoid offensive content",
+    "Stay on topic and keep discussions relevant",
+    "Be open-minded and consider different perspectives"
+  ];
+
+  const initialForumPosts: ForumPost[] = [
     {
       id: "1",
       title: "How has SerenAI helped you in your mental wellness journey?",
@@ -234,12 +281,22 @@ export default function CommunityForumPage() {
     }
   ];
 
+  const [forumPosts, setForumPosts] = useState<ForumPost[]>(initialForumPosts.map(post => ({
+    ...post,
+    isSaved: savedPosts.includes(post.id)
+  })));
+
   const filteredPosts = forumPosts.filter(post => {
     const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesCategory = selectedCategory === "all" || post.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesTrendingTopic = !selectedTrendingTopic || 
+                                  post.title.toLowerCase().includes(selectedTrendingTopic.replace('#', '').toLowerCase()) ||
+                                  post.content.toLowerCase().includes(selectedTrendingTopic.replace('#', '').toLowerCase()) ||
+                                  post.tags.some(tag => tag.toLowerCase().includes(selectedTrendingTopic.replace('#', '').toLowerCase()));
+    
+    return matchesSearch && matchesCategory && matchesTrendingTopic;
   });
 
   const sortedPosts = [...filteredPosts].sort((a, b) => {
@@ -274,6 +331,74 @@ export default function CommunityForumPage() {
     });
   };
 
+  const toggleSavePost = (postId: string) => {
+    if (savedPosts.includes(postId)) {
+      setSavedPosts(savedPosts.filter(id => id !== postId));
+    } else {
+      setSavedPosts([...savedPosts, postId]);
+    }
+    
+    setForumPosts(forumPosts.map(post => 
+      post.id === postId ? { ...post, isSaved: !post.isSaved } : post
+    ));
+  };
+
+  const handleCreatePost = () => {
+    if (!newPost.title.trim() || !newPost.content.trim()) return;
+    
+    const newPostObj: ForumPost = {
+      id: (forumPosts.length + 1).toString(),
+      title: newPost.title,
+      content: newPost.content,
+      author: {
+        name: "You",
+        role: "Community Member"
+      },
+      category: newPost.category,
+      tags: newPost.tags,
+      likes: 0,
+      replies: 0,
+      views: 0,
+      createdAt: new Date().toISOString().split('T')[0],
+      isPinned: false,
+      isLocked: false,
+      isSolved: false,
+      trending: false,
+      isSaved: false
+    };
+    
+    setForumPosts([newPostObj, ...forumPosts]);
+    setNewPost({
+      title: "",
+      content: "",
+      category: "general",
+      tags: [],
+      currentTag: ""
+    });
+    setIsNewPostModalOpen(false);
+  };
+
+  const handleAddTag = () => {
+    if (newPost.currentTag.trim() && !newPost.tags.includes(newPost.currentTag.trim())) {
+      setNewPost({
+        ...newPost,
+        tags: [...newPost.tags, newPost.currentTag.trim()],
+        currentTag: ""
+      });
+    }
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setNewPost({
+      ...newPost,
+      tags: newPost.tags.filter(t => t !== tag)
+    });
+  };
+
+  const handleTrendingTopicClick = (topic: string) => {
+    setSelectedTrendingTopic(selectedTrendingTopic === topic ? null : topic);
+  };
+
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -286,10 +411,101 @@ export default function CommunityForumPage() {
             </Link>
             <h1 className="text-3xl font-bold">Community Forum</h1>
           </div>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Post
-          </Button>
+          <Dialog open={isNewPostModalOpen} onOpenChange={setIsNewPostModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                New Post
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Create a New Post</DialogTitle>
+                <DialogDescription>
+                  Share your thoughts, questions, or experiences with the community.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    id="title"
+                    placeholder="Enter a title for your post"
+                    value={newPost.title}
+                    onChange={(e) => setNewPost({...newPost, title: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="category">Category</Label>
+                  <Select value={newPost.category} onValueChange={(value) => setNewPost({...newPost, category: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.filter(c => c.id !== "all").map(category => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="content">Content</Label>
+                  <Textarea
+                    id="content"
+                    placeholder="What would you like to share?"
+                    rows={5}
+                    value={newPost.content}
+                    onChange={(e) => setNewPost({...newPost, content: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <Label>Tags</Label>
+                  <div className="flex gap-2 mb-2">
+                    <Input
+                      placeholder="Add a tag"
+                      value={newPost.currentTag}
+                      onChange={(e) => setNewPost({...newPost, currentTag: e.target.value})}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                    />
+                    <Button type="button" onClick={handleAddTag}>Add</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {newPost.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="gap-1">
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-1"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsNewPostModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreatePost}>
+                    Post
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Hero Section */}
@@ -429,12 +645,12 @@ export default function CommunityForumPage() {
 
             {/* Tabs */}
             <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-white p-1 rounded-lg shadow-sm mb-6">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">
                 {categories.map((category) => (
                   <TabsTrigger 
                     key={category.id} 
                     value={category.id}
-                    className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+                    className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 whitespace-nowrap"
                   >
                     <div className="flex items-center gap-1">
                       {category.icon}
@@ -454,8 +670,13 @@ export default function CommunityForumPage() {
                       <CardContent className="pt-6">
                         <div className="flex gap-4">
                           <div className="flex flex-col items-center">
-                            <Button variant="ghost" size="sm" className="p-1 h-auto">
-                              <Heart className={`h-5 w-5 ${post.likes > 0 ? 'text-red-500 fill-current' : 'text-gray-400'}`} />
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="p-1 h-auto"
+                              onClick={() => toggleSavePost(post.id)}
+                            >
+                              <Bookmark className={`h-5 w-5 ${post.isSaved ? 'text-blue-500 fill-current' : 'text-gray-400'}`} />
                             </Button>
                             <span className="text-xs text-gray-500">{post.likes}</span>
                           </div>
@@ -512,7 +733,7 @@ export default function CommunityForumPage() {
                               
                               <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-1">
-                                  <MessageSquare className="h-3 w-3" />
+                                  <MessageCircle className="h-3 w-3" />
                                   <span>{post.replies}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -537,6 +758,7 @@ export default function CommunityForumPage() {
                       <Button onClick={() => {
                         setSearchQuery("");
                         setSelectedCategory("all");
+                        setSelectedTrendingTopic(null);
                       }}>
                         Clear Filters
                       </Button>
@@ -585,9 +807,13 @@ export default function CommunityForumPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {["#MoodTracking", "#JournalingTips", "#Mindfulness", "#AnxietySupport", "#SelfCare"].map((topic, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <span className="text-blue-600 hover:text-blue-800 cursor-pointer">{topic}</span>
+                  {trendingTopics.map((topic, index) => (
+                    <div 
+                      key={index} 
+                      className={`flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors ${selectedTrendingTopic === topic ? 'bg-blue-50' : ''}`}
+                      onClick={() => handleTrendingTopicClick(topic)}
+                    >
+                      <span className={`text-blue-600 ${selectedTrendingTopic === topic ? 'font-medium' : ''}`}>{topic}</span>
                       <Badge variant="outline">{Math.floor(Math.random() * 50) + 10} posts</Badge>
                     </div>
                   ))}
@@ -633,9 +859,34 @@ export default function CommunityForumPage() {
                 <p className="text-gray-600 mb-3">
                   Please read and follow our community guidelines to maintain a positive and supportive environment.
                 </p>
-                <Button variant="outline" className="w-full">
-                  Read Guidelines
-                </Button>
+                <Dialog open={isGuidelinesModalOpen} onOpenChange={setIsGuidelinesModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      Read Guidelines
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[600px]">
+                    <DialogHeader>
+                      <DialogTitle>Community Guidelines</DialogTitle>
+                      <DialogDescription>
+                        Please follow these guidelines to maintain a positive and supportive community environment.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                      {communityGuidelines.map((guideline, index) => (
+                        <div key={index} className="flex items-start gap-3">
+                          <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>{guideline}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-end mt-4">
+                      <Button onClick={() => setIsGuidelinesModalOpen(false)}>
+                        I Understand
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
           </div>
