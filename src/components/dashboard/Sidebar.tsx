@@ -88,7 +88,7 @@ export default function Sidebar() {
                 collapsed ? "justify-center w-full" : ""
               )}
             >
-              <div className="relative w-8 h-8 flex-shrink-0">
+              <div className="relative w-12 h-12 flex-shrink-0">
                 <Image 
                   src="/logo.png" 
                   alt="SerenAI Logo" 
