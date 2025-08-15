@@ -6,13 +6,16 @@ import Header from "@/components/dashboard/Header";
 import { SidebarProvider } from "@/contexts/SidebarContext";
 import { syncUserWithDatabase } from "@/lib/auth";
 
+// Client-side component for notifications
+import ClientSideEffects from "./ClientSideEffects";
+
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const { userId } = await auth();
   if (!userId) {
     redirect("/sign-in");
   }
 
-  // Sync user with database directly instead of making HTTP request
+  // Server-side user sync
   try {
     await syncUserWithDatabase();
   } catch (error) {
@@ -24,6 +27,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <SidebarProvider>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900">
+        <ClientSideEffects userId={userId} />
         <div className="flex h-screen">
           <Sidebar />
           <div className="flex-1 flex flex-col overflow-hidden">

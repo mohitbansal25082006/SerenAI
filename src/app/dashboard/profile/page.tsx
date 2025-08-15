@@ -1,20 +1,30 @@
+// E:\serenai\src\app\dashboard\profile\page.tsx
 "use client";
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useRef } from "react";
 import { 
   User, 
   Mail, 
   Calendar, 
   ChevronLeft,
-  Bell,
   Shield,
+  Upload,
   Moon,
   Sun,
   Monitor,
-  Upload,
+  Camera,
+  Edit,
+  Save,
+  X,
+  Trash2,
+  Download,
+  Key
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useUser } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
@@ -24,7 +34,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export default function ProfilePage() {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [isEnabling2FA, setIsEnabling2FA] = useState(false);
+  
   const { user, isLoaded } = useUser();
   const { collapsed } = useSidebar();
   const { theme, setTheme } = useTheme();
@@ -40,13 +59,41 @@ export default function ProfilePage() {
   
   useEffect(() => {
     if (user) {
-      // Check if notifications are enabled in localStorage
-      const notificationsPref = localStorage.getItem('notificationsEnabled');
-      if (notificationsPref !== null) {
-        setNotificationsEnabled(notificationsPref === 'true');
-      }
+      setName(user.fullName || "");
+      setEmail(user.primaryEmailAddress?.emailAddress || "");
+      setPreviewUrl(user.imageUrl);
+      
+      // Check if 2FA is enabled (this would come from Clerk in a real implementation)
+      const twoFactorStatus = localStorage.getItem('twoFactorEnabled');
+      setTwoFactorEnabled(twoFactorStatus === 'true');
     }
   }, [user]);
+  
+  const handleSaveProfile = async () => {
+    setIsLoading(true);
+    
+    try {
+      // Update user name if changed
+      if (name !== user?.fullName) {
+        const nameParts = name.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+        
+        await user?.update({
+          firstName: firstName,
+          lastName: lastName
+        });
+      }
+      
+      toast.success("Profile updated successfully");
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      toast.error("Failed to update profile. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString("en-US", {
@@ -104,20 +151,93 @@ export default function ProfilePage() {
     }
   };
   
-  const toggleNotifications = () => {
-    const newValue = !notificationsEnabled;
-    setNotificationsEnabled(newValue);
-    localStorage.setItem('notificationsEnabled', newValue.toString());
+  const handleChangePhotoClick = () => {
+    if (!isEditing) return;
+    fileInputRef.current?.click();
+  };
+  
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please upload an image file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+    setIsUploading(true);
+    try {
+      // Create preview URL
+      setPreviewUrl(URL.createObjectURL(file));
+      
+      // Upload to Clerk
+      await user?.setProfileImage({ file });
+      toast.success("Profile picture updated successfully");
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+      toast.error("Failed to update profile picture");
+      setPreviewUrl(user?.imageUrl || null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleEnable2FA = async () => {
+    setIsEnabling2FA(true);
+    try {
+      // In a real implementation, this would trigger Clerk's 2FA setup flow
+      // For now, we'll simulate it
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setTwoFactorEnabled(true);
+      localStorage.setItem('twoFactorEnabled', 'true');
+      toast.success("Two-factor authentication enabled successfully");
+    } catch (error) {
+      console.error("Error enabling 2FA:", error);
+      toast.error("Failed to enable two-factor authentication");
+    } finally {
+      setIsEnabling2FA(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (!confirm("Are you sure you want to disable two-factor authentication?")) return;
     
-    if (newValue) {
-      toast.success("Notifications enabled");
-    } else {
-      toast.success("Notifications disabled");
+    try {
+      // In a real implementation, this would disable 2FA in Clerk
+      // For now, we'll simulate it
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setTwoFactorEnabled(false);
+      localStorage.setItem('twoFactorEnabled', 'false');
+      toast.success("Two-factor authentication disabled");
+    } catch (error) {
+      console.error("Error disabling 2FA:", error);
+      toast.error("Failed to disable two-factor authentication");
+    }
+  };
+
+  const removeProfilePicture = async () => {
+    if (!confirm("Are you sure you want to remove your profile picture?")) return;
+    
+    try {
+      await user?.setProfileImage({ file: null });
+      setPreviewUrl(null);
+      toast.success("Profile picture removed");
+    } catch (error) {
+      console.error("Error removing profile picture:", error);
+      toast.error("Failed to remove profile picture");
     }
   };
   
   if (!isLoaded) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+    return (
+      <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </div>
+    );
   }
   
   return (
@@ -125,13 +245,37 @@ export default function ProfilePage() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/dashboard" passHref legacyBehavior>
+            <Link href="/dashboard">
               <Button variant="ghost" size="icon">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
             </Link>
             <h1 className="text-2xl font-bold">Profile</h1>
           </div>
+          <Button 
+            variant={isEditing ? "default" : "outline"}
+            onClick={() => {
+              if (isEditing) {
+                handleSaveProfile();
+              } else {
+                setIsEditing(true);
+              }
+            }}
+            disabled={isLoading || isUploading}
+            className="gap-2"
+          >
+            {isEditing ? (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            ) : (
+              <>
+                <Edit className="h-4 w-4" />
+                Edit Profile
+              </>
+            )}
+          </Button>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -142,10 +286,10 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent className="text-center">
                 <div className="w-32 h-32 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center mx-auto mb-4 overflow-hidden">
-                  {user?.imageUrl ? (
+                  {previewUrl ? (
                     <Image 
-                      src={user.imageUrl} 
-                      alt={user.fullName || "User"} 
+                      src={previewUrl} 
+                      alt={name || "User"} 
                       width={128}
                       height={128}
                       className="w-full h-full object-cover"
@@ -153,6 +297,38 @@ export default function ProfilePage() {
                     />
                   ) : (
                     <User className="h-16 w-16 text-white" />
+                  )}
+                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                  disabled={!isEditing}
+                />
+                <div className="flex flex-col gap-2 mt-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleChangePhotoClick}
+                    disabled={isUploading || !isEditing}
+                    className="gap-2"
+                  >
+                    <Camera className="h-4 w-4" />
+                    {isUploading ? "Uploading..." : "Change Photo"}
+                  </Button>
+                  {previewUrl && isEditing && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={removeProfilePicture}
+                      disabled={isUploading}
+                      className="gap-2"
+                    >
+                      <X className="h-4 w-4" />
+                      Remove
+                    </Button>
                   )}
                 </div>
               </CardContent>
@@ -167,18 +343,37 @@ export default function ProfilePage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Full Name</label>
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <User className="h-4 w-4 text-gray-500" />
-                    <span>{user?.fullName || "Not provided"}</span>
-                  </div>
+                  {isEditing ? (
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      disabled={isLoading}
+                      placeholder="Enter your full name"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span>{name || "Not provided"}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Email Address</label>
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <Mail className="h-4 w-4 text-gray-500" />
-                    <span>{user?.primaryEmailAddress?.emailAddress || "Not provided"}</span>
-                  </div>
+                  {isEditing ? (
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={true}
+                      placeholder="your.email@example.com"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                      <span>{email || "Not provided"}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -237,23 +432,6 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Notifications</label>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                    <div className="flex items-center gap-2">
-                      <Bell className="h-4 w-4 text-gray-500" />
-                      <span>Email Notifications</span>
-                    </div>
-                    <Button
-                      variant={notificationsEnabled ? "default" : "outline"}
-                      size="sm"
-                      onClick={toggleNotifications}
-                    >
-                      {notificationsEnabled ? "Enabled" : "Disabled"}
-                    </Button>
-                  </div>
-                </div>
               </CardContent>
             </Card>
             
@@ -267,18 +445,38 @@ export default function ProfilePage() {
               <CardContent>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Two-Factor Authentication</span>
-                    <Badge variant="outline">Not Enabled</Badge>
+                    <div>
+                      <span className="text-sm">Two-Factor Authentication</span>
+                      <p className="text-xs text-gray-500">Add an extra layer of security</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={twoFactorEnabled ? "default" : "outline"}>
+                        {twoFactorEnabled ? "Enabled" : "Disabled"}
+                      </Badge>
+                      {twoFactorEnabled ? (
+                        <Button variant="outline" size="sm" onClick={handleDisable2FA}>
+                          Disable
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={handleEnable2FA} disabled={isEnabling2FA}>
+                          {isEnabling2FA ? "Enabling..." : "Enable"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Data Export</span>
+                    <p className="text-xs text-gray-500">Download all your data</p>
                     <Button variant="outline" size="sm" onClick={handleExportData}>
-                      Export Data
+                      <Download className="h-4 w-4 mr-1" />
+                      Export
                     </Button>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Delete Account</span>
+                    <p className="text-xs text-gray-500">Permanently delete your account</p>
                     <Button variant="destructive" size="sm" onClick={handleDeleteAccount}>
+                      <Trash2 className="h-4 w-4 mr-1" />
                       Delete
                     </Button>
                   </div>

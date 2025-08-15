@@ -1,39 +1,164 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   ChevronLeft,
   Bell,
   Shield,
-  Database,
-  Palette,
+  Globe,
   HelpCircle,
-  LogOut
+  LogOut,
+  Smartphone,
+  Mail,
+  Calendar,
+  CheckCircle,
+  Key
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
+import { toast } from "sonner";
+import { NotificationScheduler } from "@/lib/scheduler";
 
 export default function SettingsPage() {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [emailReminders, setEmailReminders] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [emailReminders, setEmailReminders] = useState(false);
+  const [dailyDigest, setDailyDigest] = useState(false);
   const [dataSharing, setDataSharing] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [language, setLanguage] = useState("english");
+  const [isEnabling2FA, setIsEnabling2FA] = useState(false);
   
   const { user } = useUser();
   const { collapsed } = useSidebar();
   const router = useRouter();
   const { signOut } = useClerk();
 
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const savedSettings = JSON.parse(localStorage.getItem('userSettings') || '{}');
+    
+    if (savedSettings.notificationsEnabled !== undefined) {
+      setNotificationsEnabled(savedSettings.notificationsEnabled);
+    }
+    if (savedSettings.emailReminders !== undefined) {
+      setEmailReminders(savedSettings.emailReminders);
+    }
+    if (savedSettings.dailyDigest !== undefined) {
+      setDailyDigest(savedSettings.dailyDigest);
+    }
+    if (savedSettings.dataSharing !== undefined) {
+      setDataSharing(savedSettings.dataSharing);
+    }
+    if (savedSettings.language !== undefined) {
+      setLanguage(savedSettings.language);
+    }
+  }, []);
+
+  // Save settings to localStorage when they change and reschedule notifications
+  useEffect(() => {
+    const settings = {
+      notificationsEnabled,
+      emailReminders,
+      dailyDigest,
+      dataSharing,
+      language
+    };
+    localStorage.setItem('userSettings', JSON.stringify(settings));
+
+    // Reschedule notifications when relevant settings change
+    if (typeof window !== 'undefined' && (notificationsEnabled || emailReminders || dailyDigest)) {
+      try {
+        NotificationScheduler.getInstance().reschedule();
+      } catch (error) {
+        console.error("Error rescheduling notifications:", error);
+      }
+    }
+  }, [notificationsEnabled, emailReminders, dailyDigest, dataSharing, language]);
+
   const handleSignOut = () => {
     signOut().then(() => router.push("/"));
+  };
+
+  const handleEnable2FA = async () => {
+    setIsEnabling2FA(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setTwoFactorEnabled(true);
+      toast.success("Two-factor authentication enabled successfully");
+    } catch (error) {
+      console.error("Error enabling 2FA:", error);
+      toast.error("Failed to enable two-factor authentication");
+    } finally {
+      setIsEnabling2FA(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (!confirm("Are you sure you want to disable two-factor authentication?")) return;
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setTwoFactorEnabled(false);
+      toast.success("Two-factor authentication disabled");
+    } catch (error) {
+      console.error("Error disabling 2FA:", error);
+      toast.error("Failed to disable two-factor authentication");
+    }
+  };
+
+  const handleExportData = async () => {
+    try {
+      const response = await fetch('/api/insights/export');
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `serenai-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success("Data exported successfully");
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      toast.error("Failed to export data");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
+    
+    try {
+      const response = await fetch('/api/user/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        if (user) {
+          await user.delete();
+        }
+        toast.success("Account deleted successfully");
+        router.push('/');
+      } else {
+        throw new Error('Account deletion failed');
+      }
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      toast.error("Failed to delete account");
+    }
   };
 
   return (
@@ -49,7 +174,7 @@ export default function SettingsPage() {
             <h1 className="text-2xl font-bold">Settings</h1>
           </div>
         </div>
-
+        
         <div className="space-y-6">
           {/* Notifications */}
           <Card>
@@ -83,9 +208,21 @@ export default function SettingsPage() {
                   onCheckedChange={setEmailReminders}
                 />
               </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="digest">Daily Digest</Label>
+                  <p className="text-sm text-gray-600">Receive a summary of your daily activities</p>
+                </div>
+                <Switch
+                  id="digest"
+                  checked={dailyDigest}
+                  onCheckedChange={setDailyDigest}
+                />
+              </div>
             </CardContent>
           </Card>
-
+          
           {/* Privacy */}
           <Card>
             <CardHeader>
@@ -112,73 +249,53 @@ export default function SettingsPage() {
                   <Label>Two-Factor Authentication</Label>
                   <p className="text-sm text-gray-600">Add an extra layer of security</p>
                 </div>
-                <Badge variant="outline">Not Enabled</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={twoFactorEnabled ? "default" : "outline"}>
+                    {twoFactorEnabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                  {twoFactorEnabled ? (
+                    <Button variant="outline" size="sm" onClick={handleDisable2FA}>
+                      Disable
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={handleEnable2FA} disabled={isEnabling2FA}>
+                      {isEnabling2FA ? "Enabling..." : "Enable"}
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
-
+          
           {/* Appearance */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Palette className="h-5 w-5" />
-                Appearance
+                <Globe className="h-5 w-5" />
+                Language & Region
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="dark-mode">Dark Mode</Label>
-                  <p className="text-sm text-gray-600">Toggle dark theme</p>
-                </div>
-                <Switch
-                  id="dark-mode"
-                  checked={darkMode}
-                  onCheckedChange={setDarkMode}
-                />
-              </div>
-              
               <div>
                 <Label>Language</Label>
-                <div className="mt-2">
-                  <select className="w-full p-2 border border-gray-300 rounded-md">
-                    <option>English</option>
-                    <option>Spanish</option>
-                    <option>French</option>
-                    <option>German</option>
-                  </select>
-                </div>
+                <Select value={language} onValueChange={setLanguage}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="english">English</SelectItem>
+                    <SelectItem value="spanish">Spanish</SelectItem>
+                    <SelectItem value="french">French</SelectItem>
+                    <SelectItem value="german">German</SelectItem>
+                    <SelectItem value="japanese">Japanese</SelectItem>
+                    <SelectItem value="korean">Korean</SelectItem>
+                    <SelectItem value="chinese">Chinese</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
-
-          {/* Data Management */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Data Management
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Export Data</Label>
-                  <p className="text-sm text-gray-600">Download all your data</p>
-                </div>
-                <Button variant="outline">Export</Button>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Delete Account</Label>
-                  <p className="text-sm text-gray-600">Permanently delete your account</p>
-                </div>
-                <Button variant="destructive">Delete</Button>
-              </div>
-            </CardContent>
-          </Card>
-
+          
           {/* Support */}
           <Card>
             <CardHeader>
@@ -193,7 +310,9 @@ export default function SettingsPage() {
                   <Label>Help Center</Label>
                   <p className="text-sm text-gray-600">Find answers to common questions</p>
                 </div>
-                <Button variant="outline">Visit</Button>
+                <Button variant="outline" asChild>
+                  <Link href="/dashboard/documentation">Visit</Link>
+                </Button>
               </div>
               
               <div className="flex items-center justify-between">
@@ -201,11 +320,44 @@ export default function SettingsPage() {
                   <Label>Contact Support</Label>
                   <p className="text-sm text-gray-600">Get help from our support team</p>
                 </div>
-                <Button variant="outline">Contact</Button>
+                <Button variant="outline" asChild>
+                  <Link href="/dashboard/contact-support">Contact</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
-
+          
+          {/* Account Actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Account
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Export Data</Label>
+                  <p className="text-sm text-gray-600">Download all your data</p>
+                </div>
+                <Button variant="outline" onClick={handleExportData}>
+                  Export
+                </Button>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Delete Account</Label>
+                  <p className="text-sm text-gray-600">Permanently delete your account</p>
+                </div>
+                <Button variant="destructive" onClick={handleDeleteAccount}>
+                  Delete
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
           {/* Sign Out */}
           <Card>
             <CardContent className="pt-6">

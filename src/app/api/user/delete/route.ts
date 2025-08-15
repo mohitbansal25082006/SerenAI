@@ -19,9 +19,8 @@ export async function DELETE() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Delete user-related data
+    // Delete all user data
     await prisma.$transaction([
-      // Delete messages
       prisma.message.deleteMany({
         where: {
           conversation: {
@@ -29,43 +28,23 @@ export async function DELETE() {
           },
         },
       }),
-      
-      // Delete conversations
       prisma.conversation.deleteMany({
-        where: {
-          userId: user.id,
-        },
+        where: { userId: user.id },
       }),
-      
-      // Delete journal entries
       prisma.journalEntry.deleteMany({
-        where: {
-          userId: user.id,
-        },
+        where: { userId: user.id },
       }),
-      
-      // Delete mood records
       prisma.moodRecord.deleteMany({
-        where: {
-          userId: user.id,
-        },
+        where: { userId: user.id },
       }),
-      
-      // Delete sessions
       prisma.session.deleteMany({
-        where: {
-          userId: user.id,
-        },
+        where: { userId: user.id },
       }),
-      
-      // Delete insights
-      prisma.$executeRaw`DELETE FROM insights WHERE user_id = ${userId}`,
-      
-      // Finally, delete the user
+      prisma.insight.deleteMany({
+        where: { userId: user.id },
+      }),
       prisma.user.delete({
-        where: {
-          id: user.id,
-        },
+        where: { id: user.id },
       }),
     ]);
 

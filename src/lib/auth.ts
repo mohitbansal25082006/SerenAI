@@ -1,4 +1,3 @@
-// src/lib/auth.ts
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "./db";
 import type { User } from "@prisma/client";

@@ -14,9 +14,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
+import { useNotifications } from "@/hooks/useNotifications";
 
 export default function Header() {
   const { collapsed } = useSidebar();
+  const { unreadCount } = useNotifications();
+  const router = useRouter();
+
+  const handleBellClick = () => {
+    router.push('/dashboard/notifications');
+  };
 
   return (
     <header 
@@ -35,7 +44,6 @@ export default function Header() {
             />
           </div>
         </div>
-
         <div className="flex items-center space-x-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -58,8 +66,21 @@ export default function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          <Button variant="ghost" size="icon" className="text-gray-600 hover:text-gray-900">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-gray-600 hover:text-gray-900 relative"
+            onClick={handleBellClick}
+          >
             <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              >
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Badge>
+            )}
           </Button>
           <UserButton afterSignOutUrl="/" />
         </div>
