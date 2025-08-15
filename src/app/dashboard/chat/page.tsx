@@ -93,6 +93,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const transcriptRef = useRef<string>("");
   const { collapsed } = useSidebar();
 
   // Check if browser supports speech recognition and text-to-speech
@@ -111,17 +112,25 @@ export default function ChatPage() {
         
         recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
           const transcript = event.results[0][0].transcript;
+          transcriptRef.current = transcript;
           setInputValue(transcript);
         };
         
         recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.error('Speech recognition error', event.error);
           setIsListening(false);
+          setInputValue('');
+          transcriptRef.current = '';
           toast.error('Speech recognition error. Please try again.');
         };
         
         recognitionRef.current.onend = () => {
           setIsListening(false);
+          // Automatically send the message if there's a transcript
+          if (transcriptRef.current.trim() !== '') {
+            handleSendMessage(transcriptRef.current);
+            transcriptRef.current = '';
+          }
         };
       }
     }
@@ -216,19 +225,21 @@ export default function ChatPage() {
       recognitionRef.current?.stop();
       setIsListening(false);
     } else {
+      transcriptRef.current = ''; // Clear any previous transcript
+      setInputValue('');
       recognitionRef.current?.start();
       setIsListening(true);
-      setInputValue('');
     }
   };
 
-  const handleSendMessage = async () => {
-    if (inputValue.trim() === "" || isLoading) return;
+  const handleSendMessage = async (message?: string) => {
+    const messageToSend = message || inputValue;
+    if (messageToSend.trim() === "" || isLoading) return;
     
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: inputValue,
+      content: messageToSend,
       timestamp: new Date(),
     };
     
@@ -240,7 +251,7 @@ export default function ChatPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: inputValue, conversationId }),
+        body: JSON.stringify({ message: messageToSend, conversationId }),
       });
       
       if (!response.ok) throw new Error("Failed to send message");
@@ -576,7 +587,7 @@ export default function ChatPage() {
                   disabled={isLoading}
                 />
                 <Button
-                  onClick={handleSendMessage}
+                  onClick={() => handleSendMessage()}
                   disabled={inputValue.trim() === "" || isLoading}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
