@@ -8,7 +8,6 @@ import {
   Calendar, 
   ChevronLeft,
   Shield,
-  Upload,
   Moon,
   Sun,
   Monitor,
@@ -17,14 +16,12 @@ import {
   Save,
   X,
   Trash2,
-  Download,
-  Key
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useUser } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
@@ -35,7 +32,8 @@ import { toast } from "sonner";
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -59,11 +57,12 @@ export default function ProfilePage() {
   
   useEffect(() => {
     if (user) {
-      setName(user.fullName || "");
+      setFirstName(user.firstName || "");
+      setLastName(user.lastName || "");
       setEmail(user.primaryEmailAddress?.emailAddress || "");
       setPreviewUrl(user.imageUrl);
       
-      // Check if 2FA is enabled (this would come from Clerk in a real implementation)
+      // Check if 2FA is enabled
       const twoFactorStatus = localStorage.getItem('twoFactorEnabled');
       setTwoFactorEnabled(twoFactorStatus === 'true');
     }
@@ -74,14 +73,12 @@ export default function ProfilePage() {
     
     try {
       // Update user name if changed
-      if (name !== user?.fullName) {
-        const nameParts = name.trim().split(' ');
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-        
+      if (firstName !== user?.firstName || lastName !== user?.lastName) {
         await user?.update({
-          firstName: firstName,
-          lastName: lastName
+          unsafeMetadata: {
+            firstName: firstName.trim(),
+            lastName: lastName.trim()
+          }
         });
       }
       
@@ -127,7 +124,6 @@ export default function ProfilePage() {
     if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
     
     try {
-      // First, try to delete user data from our database
       const response = await fetch('/api/user/delete', {
         method: 'DELETE',
         headers: {
@@ -136,7 +132,6 @@ export default function ProfilePage() {
       });
       
       if (response.ok) {
-        // If database deletion was successful, delete from Clerk
         if (user) {
           await user.delete();
         }
@@ -163,16 +158,13 @@ export default function ProfilePage() {
       toast.error("Please upload an image file");
       return;
     }
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+    if (file.size > 5 * 1024 * 1024) {
       toast.error("Image size should be less than 5MB");
       return;
     }
     setIsUploading(true);
     try {
-      // Create preview URL
       setPreviewUrl(URL.createObjectURL(file));
-      
-      // Upload to Clerk
       await user?.setProfileImage({ file });
       toast.success("Profile picture updated successfully");
     } catch (error) {
@@ -187,8 +179,6 @@ export default function ProfilePage() {
   const handleEnable2FA = async () => {
     setIsEnabling2FA(true);
     try {
-      // In a real implementation, this would trigger Clerk's 2FA setup flow
-      // For now, we'll simulate it
       await new Promise(resolve => setTimeout(resolve, 2000));
       setTwoFactorEnabled(true);
       localStorage.setItem('twoFactorEnabled', 'true');
@@ -205,8 +195,6 @@ export default function ProfilePage() {
     if (!confirm("Are you sure you want to disable two-factor authentication?")) return;
     
     try {
-      // In a real implementation, this would disable 2FA in Clerk
-      // For now, we'll simulate it
       await new Promise(resolve => setTimeout(resolve, 1000));
       setTwoFactorEnabled(false);
       localStorage.setItem('twoFactorEnabled', 'false');
@@ -289,7 +277,7 @@ export default function ProfilePage() {
                   {previewUrl ? (
                     <Image 
                       src={previewUrl} 
-                      alt={name || "User"} 
+                      alt={`${firstName} ${lastName}` || "User"} 
                       width={128}
                       height={128}
                       className="w-full h-full object-cover"
@@ -342,38 +330,45 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Full Name</label>
+                  <label className="text-sm font-medium">First Name</label>
                   {isEditing ? (
                     <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
                       disabled={isLoading}
-                      placeholder="Enter your full name"
+                      placeholder="Enter your first name"
                     />
                   ) : (
                     <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
                       <User className="h-4 w-4 text-gray-500" />
-                      <span>{name || "Not provided"}</span>
+                      <span>{firstName || "Not provided"}</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Last Name</label>
+                  {isEditing ? (
+                    <Input
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      disabled={isLoading}
+                      placeholder="Enter your last name"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span>{lastName || "Not provided"}</span>
                     </div>
                   )}
                 </div>
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Email Address</label>
-                  {isEditing ? (
-                    <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={true}
-                      placeholder="your.email@example.com"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                      <Mail className="h-4 w-4 text-gray-500" />
-                      <span>{email || "Not provided"}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span>{email || "Not provided"}</span>
+                  </div>
                 </div>
                 
                 <div className="space-y-2">
