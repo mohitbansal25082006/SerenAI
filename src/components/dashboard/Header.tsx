@@ -1,8 +1,6 @@
 "use client";
-
-import { Bell, Search, User, HelpCircle } from "lucide-react";
+import { Bell, Home, ChevronRight, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { UserButton } from "@clerk/nextjs";
 import {
   DropdownMenu,
@@ -16,17 +14,75 @@ import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useUser } from "@clerk/nextjs";
 
 export default function Header() {
   const { collapsed } = useSidebar();
   const { unreadCount } = useNotifications();
   const router = useRouter();
-
+  const pathname = usePathname();
+  const { user, isLoaded } = useUser();
+  
   const handleBellClick = () => {
     router.push('/dashboard/notifications');
   };
-
+  
+  // Get user's display name from metadata or user object
+  const getUserDisplayName = () => {
+    if (!user) return "User";
+    
+    // Try to get the full name from metadata first
+    const firstName = user.unsafeMetadata?.firstName || user.firstName || "";
+    const lastName = user.unsafeMetadata?.lastName || user.lastName || "";
+    
+    if (firstName || lastName) {
+      return `${firstName} ${lastName}`.trim();
+    }
+    
+    // Fallback to username or email
+    return user.username || user.primaryEmailAddress?.emailAddress?.split('@')[0] || "User";
+  };
+  
+  // Generate breadcrumb navigation based on current path
+  const getBreadcrumbs = () => {
+    const paths = pathname.split('/').filter(Boolean);
+    
+    if (paths.length === 0) return [];
+    
+    const breadcrumbs = [];
+    let currentPath = '';
+    
+    for (let i = 0; i < paths.length; i++) {
+      currentPath += `/${paths[i]}`;
+      
+      // Skip adding 'dashboard' to breadcrumbs if it's the first item
+      if (i === 0 && paths[i] === 'dashboard') continue;
+      
+      // Format the breadcrumb label
+      let label = paths[i];
+      if (label === 'chat') label = 'AI Chat';
+      else if (label === 'journal') label = 'Journal';
+      else if (label === 'mood') label = 'Mood Tracker';
+      else if (label === 'insights') label = 'Insights';
+      else if (label === 'activities') label = 'Activities';
+      else if (label === 'profile') label = 'Profile';
+      else if (label === 'settings') label = 'Settings';
+      else label = label.charAt(0).toUpperCase() + label.slice(1);
+      
+      breadcrumbs.push({
+        label,
+        path: currentPath
+      });
+    }
+    
+    return breadcrumbs;
+  };
+  
+  const breadcrumbs = getBreadcrumbs();
+  const userDisplayName = getUserDisplayName();
+  
   return (
     <header 
       className={`sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 transition-all duration-300 ${
@@ -35,16 +91,49 @@ export default function Header() {
     >
       <div className="flex items-center justify-between h-16 px-6">
         <div className="flex items-center">
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              type="text"
-              placeholder="Search..."
-              className="pl-10 bg-gray-100 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500"
-            />
-          </div>
+          {/* SerenAI text that links to landing page */}
+          <Link href="/" className="mr-6">
+            <span className="text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
+              SerenAI
+            </span>
+          </Link>
+          
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center space-x-1 text-sm">
+            <Link 
+              href="/dashboard" 
+              className="flex items-center text-gray-500 hover:text-gray-700"
+            >
+              <Home className="h-4 w-4" />
+            </Link>
+            
+            {breadcrumbs.map((breadcrumb, index) => (
+              <div key={index} className="flex items-center">
+                <ChevronRight className="h-4 w-4 text-gray-400 mx-1" />
+                <Link 
+                  href={breadcrumb.path} 
+                  className={`${
+                    pathname === breadcrumb.path 
+                      ? 'text-blue-600 font-medium' 
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {breadcrumb.label}
+                </Link>
+              </div>
+            ))}
+          </nav>
         </div>
+        
         <div className="flex items-center space-x-4">
+          {/* User greeting */}
+          <div className="hidden md:flex flex-col items-end">
+            <span className="text-sm text-gray-500">Welcome back,</span>
+            <span className="font-medium">
+              {userDisplayName}
+            </span>
+          </div>
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="text-gray-600 hover:text-gray-900">

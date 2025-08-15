@@ -13,18 +13,12 @@ import {
   Edit,
   Save,
   X,
-  Trash2,
-  Eye,
-  EyeOff,
-  Lock,
-  Database,
-  AlertTriangle
+  Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -49,12 +43,8 @@ export default function ProfilePage() {
   const [personalizedContentEnabled, setPersonalizedContentEnabled] = useState(true);
   const [isSavingPrivacySettings, setIsSavingPrivacySettings] = useState(false);
   
-  // Delete account states
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
-  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-  
   const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
   const { collapsed } = useSidebar();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
@@ -112,52 +102,6 @@ export default function ProfilePage() {
       month: "long",
       day: "numeric",
     });
-  };
-  
-  const handleDeleteAccount = async () => {
-    // First show the confirmation dialog
-    setShowDeleteConfirmation(true);
-  };
-  
-  const confirmDeleteAccount = async () => {
-    // Verify the user typed "DELETE" exactly
-    if (deleteConfirmationText !== "DELETE") {
-      toast.error('Please type "DELETE" to confirm account deletion');
-      return;
-    }
-    
-    setIsDeletingAccount(true);
-    
-    try {
-      // Call the backend API to delete the account
-      const response = await fetch('/api/user/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        // Clear local storage
-        localStorage.clear();
-        
-        // Sign out from Clerk
-        await user?.signOut();
-        
-        toast.success("Account deleted successfully");
-        router.push('/');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Account deletion failed');
-      }
-    } catch (error: any) {
-      console.error("Error deleting account:", error);
-      toast.error(error.message || "Failed to delete account");
-    } finally {
-      setIsDeletingAccount(false);
-      setShowDeleteConfirmation(false);
-      setDeleteConfirmationText("");
-    }
   };
   
   const handleChangePhotoClick = () => {
@@ -490,87 +434,9 @@ export default function ProfilePage() {
                 </div>
               </CardContent>
             </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  Account Management
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm">Data Management</span>
-                      <p className="text-xs text-gray-500">Control how your data is stored and used</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">Active</Badge>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm">Delete Account</span>
-                      <p className="text-xs text-gray-500">Permanently delete your account and all data</p>
-                    </div>
-                    <Button variant="destructive" size="sm" onClick={handleDeleteAccount}>
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
-      
-      {/* Delete Account Confirmation Modal */}
-      {showDeleteConfirmation && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-              <CardTitle className="text-red-500">Delete Account</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-gray-600">
-                This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
-              </p>
-              
-              <div className="space-y-2">
-                <p className="text-sm font-medium">To confirm, type "DELETE" below:</p>
-                <Input
-                  value={deleteConfirmationText}
-                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
-                  placeholder="Type DELETE to confirm"
-                />
-              </div>
-              
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setShowDeleteConfirmation(false);
-                    setDeleteConfirmationText("");
-                  }}
-                  disabled={isDeletingAccount}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={confirmDeleteAccount}
-                  disabled={isDeletingAccount || deleteConfirmationText !== "DELETE"}
-                >
-                  {isDeletingAccount ? "Deleting..." : "Delete Account"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }

@@ -5,7 +5,6 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import { SidebarProvider } from "@/contexts/SidebarContext";
 import { syncUserWithDatabase } from "@/lib/auth";
-
 // Client-side component for notifications
 import ClientSideEffects from "./ClientSideEffects";
 
@@ -19,7 +18,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   try {
     await syncUserWithDatabase();
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
+    // Check if the error is a unique constraint violation (user already exists)
+    if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+      // This is expected if the user already exists in the database
+      console.log("User already exists in database, skipping sync");
+    } else if (process.env.NODE_ENV !== "production") {
       console.warn("User sync failed:", error);
     }
   }

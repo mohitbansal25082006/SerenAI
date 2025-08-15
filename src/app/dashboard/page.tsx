@@ -67,10 +67,11 @@ export default function Dashboard(): React.ReactElement {
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [userName, setUserName] = useState<string>("");
   
   const { collapsed } = useSidebar();
-  const { user } = useUser();
-
+  const { user, isLoaded } = useUser();
+  
   // Set greeting based on time of day
   useEffect(() => {
     const hour = new Date().getHours();
@@ -78,7 +79,23 @@ export default function Dashboard(): React.ReactElement {
     else if (hour < 18) setGreeting("Good afternoon");
     else setGreeting("Good evening");
   }, []);
-
+  
+  // Get user name from metadata or user object
+  useEffect(() => {
+    if (user) {
+      // Try to get the full name from metadata first
+      const firstName = user.unsafeMetadata?.firstName || user.firstName || "";
+      const lastName = user.unsafeMetadata?.lastName || user.lastName || "";
+      
+      if (firstName || lastName) {
+        setUserName(`${firstName} ${lastName}`.trim());
+      } else {
+        // Fallback to username or email
+        setUserName(user.username || user.primaryEmailAddress?.emailAddress?.split('@')[0] || "User");
+      }
+    }
+  }, [user]);
+  
   // Fetch user data
   useEffect(() => {
     const fetchUserData = async () => {
@@ -107,7 +124,7 @@ export default function Dashboard(): React.ReactElement {
     
     fetchUserData();
   }, [user]);
-
+  
   // Initialize activities
   useEffect(() => {
     setActivities([
@@ -149,7 +166,7 @@ export default function Dashboard(): React.ReactElement {
       },
     ]);
   }, [completedActivities]);
-
+  
   // Timer effect for activities
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -182,23 +199,23 @@ export default function Dashboard(): React.ReactElement {
       if (interval) clearInterval(interval);
     };
   }, [isPlaying, timeLeft, activeActivity]);
-
+  
   const startActivity = (activityId: string, duration: number) => {
     setActiveActivity(activityId);
     setTimeLeft(duration * 60); // Convert minutes to seconds
     setIsPlaying(true);
   };
-
+  
   const togglePlayPause = () => {
     setIsPlaying(!isPlaying);
   };
-
+  
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
-
+  
   // Recent insights
   const insights: InsightItem[] = [
     {
@@ -216,7 +233,7 @@ export default function Dashboard(): React.ReactElement {
       color: "bg-yellow-100 border-yellow-200",
     },
   ];
-
+  
   // Generate mood data for the chart if not available from API
   const getMoodData = () => {
     if (moodData.length > 0) {
@@ -230,8 +247,8 @@ export default function Dashboard(): React.ReactElement {
       mood: Math.random() * 4 + 5 // Random mood between 5-9
     }));
   };
-
-  if (loading) {
+  
+  if (loading || !isLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 relative flex items-center justify-center">
         <ThreeBackground />
@@ -242,9 +259,9 @@ export default function Dashboard(): React.ReactElement {
       </div>
     );
   }
-
+  
   const chartData = getMoodData();
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 relative">
       <ThreeBackground />
@@ -258,12 +275,12 @@ export default function Dashboard(): React.ReactElement {
         >
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl font-bold mb-2">{greeting}, {user?.firstName || 'User'}!</h1>
+              <h1 className="text-3xl font-bold mb-2">{greeting}, {userName}!</h1>
               <p className="text-gray-600">How are you feeling today?</p>
             </div>
           </div>
         </motion.div>
-
+        
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <motion.div
@@ -287,7 +304,7 @@ export default function Dashboard(): React.ReactElement {
               </CardContent>
             </Card>
           </motion.div>
-
+          
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -308,7 +325,7 @@ export default function Dashboard(): React.ReactElement {
               </CardContent>
             </Card>
           </motion.div>
-
+          
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -329,7 +346,7 @@ export default function Dashboard(): React.ReactElement {
               </CardContent>
             </Card>
           </motion.div>
-
+          
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -351,7 +368,7 @@ export default function Dashboard(): React.ReactElement {
             </Card>
           </motion.div>
         </div>
-
+        
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <motion.div
@@ -376,7 +393,7 @@ export default function Dashboard(): React.ReactElement {
               </CardContent>
             </Card>
           </motion.div>
-
+          
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -397,7 +414,7 @@ export default function Dashboard(): React.ReactElement {
               </CardContent>
             </Card>
           </motion.div>
-
+          
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -419,7 +436,7 @@ export default function Dashboard(): React.ReactElement {
             </Card>
           </motion.div>
         </div>
-
+        
         {/* Active Activity Timer */}
         {activeActivity && (
           <Card className="mb-8 border-blue-200 bg-blue-50">
@@ -471,7 +488,7 @@ export default function Dashboard(): React.ReactElement {
             </CardContent>
           </Card>
         )}
-
+        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Mood Chart */}
           <motion.div
@@ -503,7 +520,7 @@ export default function Dashboard(): React.ReactElement {
               </CardContent>
             </Card>
           </motion.div>
-
+          
           {/* Daily Activities */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -587,7 +604,7 @@ export default function Dashboard(): React.ReactElement {
             </Card>
           </motion.div>
         </div>
-
+        
         {/* Insights Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

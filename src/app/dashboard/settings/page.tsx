@@ -4,14 +4,10 @@ import {
   ChevronLeft,
   Bell,
   Shield,
-  Globe,
   HelpCircle,
   LogOut,
-  Smartphone,
-  Mail,
-  Calendar,
-  CheckCircle,
-  Key
+  Key,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUser } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
@@ -29,19 +24,23 @@ import { toast } from "sonner";
 import { NotificationScheduler } from "@/lib/scheduler";
 
 export default function SettingsPage() {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [emailReminders, setEmailReminders] = useState(false);
-  const [dailyDigest, setDailyDigest] = useState(false);
-  const [dataSharing, setDataSharing] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [emailReminders, setEmailReminders] = useState(true);
+  const [dailyDigest, setDailyDigest] = useState(true);
+  const [dataSharing, setDataSharing] = useState(true);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [language, setLanguage] = useState("english");
   const [isEnabling2FA, setIsEnabling2FA] = useState(false);
+  
+  // Delete account states
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   
   const { user } = useUser();
   const { collapsed } = useSidebar();
   const router = useRouter();
   const { signOut } = useClerk();
-
+  
   // Load settings from localStorage on mount
   useEffect(() => {
     const savedSettings = JSON.parse(localStorage.getItem('userSettings') || '{}');
@@ -58,22 +57,18 @@ export default function SettingsPage() {
     if (savedSettings.dataSharing !== undefined) {
       setDataSharing(savedSettings.dataSharing);
     }
-    if (savedSettings.language !== undefined) {
-      setLanguage(savedSettings.language);
-    }
   }, []);
-
-  // Save settings to localStorage when they change and reschedule notifications
+  
+  // Auto-save settings to localStorage when they change and reschedule notifications
   useEffect(() => {
     const settings = {
       notificationsEnabled,
       emailReminders,
       dailyDigest,
-      dataSharing,
-      language
+      dataSharing
     };
     localStorage.setItem('userSettings', JSON.stringify(settings));
-
+    
     // Reschedule notifications when relevant settings change
     if (typeof window !== 'undefined' && (notificationsEnabled || emailReminders || dailyDigest)) {
       try {
@@ -82,12 +77,12 @@ export default function SettingsPage() {
         console.error("Error rescheduling notifications:", error);
       }
     }
-  }, [notificationsEnabled, emailReminders, dailyDigest, dataSharing, language]);
-
+  }, [notificationsEnabled, emailReminders, dailyDigest, dataSharing]);
+  
   const handleSignOut = () => {
     signOut().then(() => router.push("/"));
   };
-
+  
   const handleEnable2FA = async () => {
     setIsEnabling2FA(true);
     try {
@@ -101,7 +96,7 @@ export default function SettingsPage() {
       setIsEnabling2FA(false);
     }
   };
-
+  
   const handleDisable2FA = async () => {
     if (!confirm("Are you sure you want to disable two-factor authentication?")) return;
     
@@ -114,29 +109,18 @@ export default function SettingsPage() {
       toast.error("Failed to disable two-factor authentication");
     }
   };
-
-  const handleExportData = async () => {
-    try {
-      const response = await fetch('/api/insights/export');
-      if (!response.ok) throw new Error('Export failed');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `serenai-data-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      toast.success("Data exported successfully");
-    } catch (error) {
-      console.error("Error exporting data:", error);
-      toast.error("Failed to export data");
-    }
-  };
-
+  
   const handleDeleteAccount = async () => {
-    if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
+    setShowDeleteConfirmation(true);
+  };
+  
+  const confirmDeleteAccount = async () => {
+    if (deleteConfirmationText !== "DELETE") {
+      toast.error('Please type &quot;DELETE&quot; to confirm account deletion');
+      return;
+    }
+    
+    setIsDeletingAccount(true);
     
     try {
       const response = await fetch('/api/user/delete', {
@@ -147,20 +131,25 @@ export default function SettingsPage() {
       });
       
       if (response.ok) {
-        if (user) {
-          await user.delete();
-        }
+        localStorage.clear();
+        await signOut();
         toast.success("Account deleted successfully");
         router.push('/');
       } else {
-        throw new Error('Account deletion failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Account deletion failed');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error deleting account:", error);
-      toast.error("Failed to delete account");
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete account";
+      toast.error(errorMessage);
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteConfirmation(false);
+      setDeleteConfirmationText("");
     }
   };
-
+  
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -208,7 +197,7 @@ export default function SettingsPage() {
                   onCheckedChange={setEmailReminders}
                 />
               </div>
-
+              
               <div className="flex items-center justify-between">
                 <div>
                   <Label htmlFor="digest">Daily Digest</Label>
@@ -228,7 +217,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Privacy & Security
+                Privacy &amp; Security
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -263,35 +252,6 @@ export default function SettingsPage() {
                     </Button>
                   )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Appearance */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="h-5 w-5" />
-                Language & Region
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Language</Label>
-                <Select value={language} onValueChange={setLanguage}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="english">English</SelectItem>
-                    <SelectItem value="spanish">Spanish</SelectItem>
-                    <SelectItem value="french">French</SelectItem>
-                    <SelectItem value="german">German</SelectItem>
-                    <SelectItem value="japanese">Japanese</SelectItem>
-                    <SelectItem value="korean">Korean</SelectItem>
-                    <SelectItem value="chinese">Chinese</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </CardContent>
           </Card>
@@ -341,7 +301,9 @@ export default function SettingsPage() {
                   <Label>Export Data</Label>
                   <p className="text-sm text-gray-600">Download all your data</p>
                 </div>
-                <Button variant="outline" onClick={handleExportData}>
+                <Button variant="outline" onClick={() => {
+                  toast.info("Export functionality would be implemented here");
+                }}>
                   Export
                 </Button>
               </div>
@@ -373,6 +335,52 @@ export default function SettingsPage() {
           </Card>
         </div>
       </div>
+      
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirmation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <CardTitle className="text-red-500">Delete Account</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+              </p>
+              
+              <div className="space-y-2">
+                <p className="text-sm font-medium">To confirm, type &quot;DELETE&quot; below:</p>
+                <Input
+                  value={deleteConfirmationText}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDeleteConfirmationText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowDeleteConfirmation(false);
+                    setDeleteConfirmationText("");
+                  }}
+                  disabled={isDeletingAccount}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={confirmDeleteAccount}
+                  disabled={isDeletingAccount || deleteConfirmationText !== "DELETE"}
+                >
+                  {isDeletingAccount ? "Deleting..." : "Delete Account"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
