@@ -1,6 +1,4 @@
-// E:\serenai\src\app\dashboard\profile\page.tsx
 "use client";
-
 import { useState, useEffect, useRef } from "react";
 import { 
   User, 
@@ -16,7 +14,11 @@ import {
   Save,
   X,
   Trash2,
-  Download
+  Eye,
+  EyeOff,
+  Lock,
+  Database,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +31,7 @@ import { useTheme } from "next-themes";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
@@ -39,8 +42,17 @@ export default function ProfilePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [isEnabling2FA, setIsEnabling2FA] = useState(false);
+  
+  // Privacy settings
+  const [dataCollectionEnabled, setDataCollectionEnabled] = useState(true);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  const [personalizedContentEnabled, setPersonalizedContentEnabled] = useState(true);
+  const [isSavingPrivacySettings, setIsSavingPrivacySettings] = useState(false);
+  
+  // Delete account states
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   
   const { user, isLoaded } = useUser();
   const { collapsed } = useSidebar();
@@ -55,16 +67,20 @@ export default function ProfilePage() {
     }
   }, [setTheme]);
   
+  // Load privacy settings from localStorage
+  useEffect(() => {
+    setDataCollectionEnabled(localStorage.getItem('dataCollectionEnabled') !== 'false');
+    setAnalyticsEnabled(localStorage.getItem('analyticsEnabled') !== 'false');
+    setPersonalizedContentEnabled(localStorage.getItem('personalizedContentEnabled') !== 'false');
+  }, []);
+  
   useEffect(() => {
     if (user) {
-      setFirstName(user.firstName || "");
-      setLastName(user.lastName || "");
+      // Try to get names from unsafeMetadata first, then fall back to user object
+      setFirstName(user.unsafeMetadata?.firstName as string || user.firstName || "");
+      setLastName(user.unsafeMetadata?.lastName as string || user.lastName || "");
       setEmail(user.primaryEmailAddress?.emailAddress || "");
       setPreviewUrl(user.imageUrl);
-      
-      // Check if 2FA is enabled
-      const twoFactorStatus = localStorage.getItem('twoFactorEnabled');
-      setTwoFactorEnabled(twoFactorStatus === 'true');
     }
   }, [user]);
   
@@ -72,15 +88,13 @@ export default function ProfilePage() {
     setIsLoading(true);
     
     try {
-      // Update user name if changed
-      if (firstName !== user?.firstName || lastName !== user?.lastName) {
-        await user?.update({
-          unsafeMetadata: {
-            firstName: firstName.trim(),
-            lastName: lastName.trim()
-          }
-        });
-      }
+      // Update user metadata with the new names
+      await user?.update({
+        unsafeMetadata: {
+          firstName: firstName.trim(),
+          lastName: lastName.trim()
+        }
+      });
       
       toast.success("Profile updated successfully");
       setIsEditing(false);
@@ -100,30 +114,22 @@ export default function ProfilePage() {
     });
   };
   
-  const handleExportData = async () => {
-    try {
-      const response = await fetch('/api/insights/export');
-      if (!response.ok) throw new Error('Export failed');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `serenai-data-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      toast.success("Data exported successfully");
-    } catch (error) {
-      console.error("Error exporting data:", error);
-      toast.error("Failed to export data");
-    }
+  const handleDeleteAccount = async () => {
+    // First show the confirmation dialog
+    setShowDeleteConfirmation(true);
   };
   
-  const handleDeleteAccount = async () => {
-    if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
+  const confirmDeleteAccount = async () => {
+    // Verify the user typed "DELETE" exactly
+    if (deleteConfirmationText !== "DELETE") {
+      toast.error('Please type "DELETE" to confirm account deletion');
+      return;
+    }
+    
+    setIsDeletingAccount(true);
     
     try {
+      // Call the backend API to delete the account
       const response = await fetch('/api/user/delete', {
         method: 'DELETE',
         headers: {
@@ -132,17 +138,25 @@ export default function ProfilePage() {
       });
       
       if (response.ok) {
-        if (user) {
-          await user.delete();
-        }
+        // Clear local storage
+        localStorage.clear();
+        
+        // Sign out from Clerk
+        await user?.signOut();
+        
         toast.success("Account deleted successfully");
         router.push('/');
       } else {
-        throw new Error('Account deletion failed');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Account deletion failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting account:", error);
-      toast.error("Failed to delete account");
+      toast.error(error.message || "Failed to delete account");
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteConfirmation(false);
+      setDeleteConfirmationText("");
     }
   };
   
@@ -175,36 +189,28 @@ export default function ProfilePage() {
       setIsUploading(false);
     }
   };
-
-  const handleEnable2FA = async () => {
-    setIsEnabling2FA(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setTwoFactorEnabled(true);
-      localStorage.setItem('twoFactorEnabled', 'true');
-      toast.success("Two-factor authentication enabled successfully");
-    } catch (error) {
-      console.error("Error enabling 2FA:", error);
-      toast.error("Failed to enable two-factor authentication");
-    } finally {
-      setIsEnabling2FA(false);
-    }
-  };
-
-  const handleDisable2FA = async () => {
-    if (!confirm("Are you sure you want to disable two-factor authentication?")) return;
+  
+  const handleSavePrivacySettings = async () => {
+    setIsSavingPrivacySettings(true);
     
     try {
+      // Save privacy settings to localStorage
+      localStorage.setItem('dataCollectionEnabled', String(dataCollectionEnabled));
+      localStorage.setItem('analyticsEnabled', String(analyticsEnabled));
+      localStorage.setItem('personalizedContentEnabled', String(personalizedContentEnabled));
+      
+      // In a real app, you would also send these settings to your backend
       await new Promise(resolve => setTimeout(resolve, 1000));
-      setTwoFactorEnabled(false);
-      localStorage.setItem('twoFactorEnabled', 'false');
-      toast.success("Two-factor authentication disabled");
+      
+      toast.success("Privacy settings updated successfully");
     } catch (error) {
-      console.error("Error disabling 2FA:", error);
-      toast.error("Failed to disable two-factor authentication");
+      console.error("Error saving privacy settings:", error);
+      toast.error("Failed to update privacy settings");
+    } finally {
+      setIsSavingPrivacySettings(false);
     }
   };
-
+  
   const removeProfilePicture = async () => {
     if (!confirm("Are you sure you want to remove your profile picture?")) return;
     
@@ -434,42 +440,80 @@ export default function ProfilePage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="h-5 w-5" />
-                  Privacy & Security
+                  Privacy Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm">Data Collection</span>
+                      <p className="text-xs text-gray-500">Allow collection of usage data to improve our services</p>
+                    </div>
+                    <Switch
+                      checked={dataCollectionEnabled}
+                      onCheckedChange={setDataCollectionEnabled}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm">Analytics</span>
+                      <p className="text-xs text-gray-500">Help us understand how you use SerenAI</p>
+                    </div>
+                    <Switch
+                      checked={analyticsEnabled}
+                      onCheckedChange={setAnalyticsEnabled}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm">Personalized Content</span>
+                      <p className="text-xs text-gray-500">Receive personalized insights and recommendations</p>
+                    </div>
+                    <Switch
+                      checked={personalizedContentEnabled}
+                      onCheckedChange={setPersonalizedContentEnabled}
+                    />
+                  </div>
+                  
+                  <div className="pt-2 border-t border-gray-200">
+                    <Button 
+                      onClick={handleSavePrivacySettings}
+                      disabled={isSavingPrivacySettings}
+                      className="w-full"
+                    >
+                      {isSavingPrivacySettings ? "Saving..." : "Save Privacy Settings"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Account Management
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-sm">Two-Factor Authentication</span>
-                      <p className="text-xs text-gray-500">Add an extra layer of security</p>
+                      <span className="text-sm">Data Management</span>
+                      <p className="text-xs text-gray-500">Control how your data is stored and used</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={twoFactorEnabled ? "default" : "outline"}>
-                        {twoFactorEnabled ? "Enabled" : "Disabled"}
-                      </Badge>
-                      {twoFactorEnabled ? (
-                        <Button variant="outline" size="sm" onClick={handleDisable2FA}>
-                          Disable
-                        </Button>
-                      ) : (
-                        <Button size="sm" onClick={handleEnable2FA} disabled={isEnabling2FA}>
-                          {isEnabling2FA ? "Enabling..." : "Enable"}
-                        </Button>
-                      )}
+                      <Badge variant="outline">Active</Badge>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Data Export</span>
-                    <p className="text-xs text-gray-500">Download all your data</p>
-                    <Button variant="outline" size="sm" onClick={handleExportData}>
-                      <Download className="h-4 w-4 mr-1" />
-                      Export
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Delete Account</span>
-                    <p className="text-xs text-gray-500">Permanently delete your account</p>
+                    <div>
+                      <span className="text-sm">Delete Account</span>
+                      <p className="text-xs text-gray-500">Permanently delete your account and all data</p>
+                    </div>
                     <Button variant="destructive" size="sm" onClick={handleDeleteAccount}>
                       <Trash2 className="h-4 w-4 mr-1" />
                       Delete
@@ -481,6 +525,52 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+      
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirmation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <CardTitle className="text-red-500">Delete Account</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+              </p>
+              
+              <div className="space-y-2">
+                <p className="text-sm font-medium">To confirm, type "DELETE" below:</p>
+                <Input
+                  value={deleteConfirmationText}
+                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowDeleteConfirmation(false);
+                    setDeleteConfirmationText("");
+                  }}
+                  disabled={isDeletingAccount}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={confirmDeleteAccount}
+                  disabled={isDeletingAccount || deleteConfirmationText !== "DELETE"}
+                >
+                  {isDeletingAccount ? "Deleting..." : "Delete Account"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
