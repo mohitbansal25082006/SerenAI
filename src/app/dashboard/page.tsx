@@ -17,6 +17,7 @@ import {
   Lightbulb,
   CheckCircle,
   Play,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -420,17 +421,21 @@ export default function Dashboard(): React.ReactElement {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.7 }}
           >
-            <Card className="bg-gradient-to-br from-green-100 to-green-50 backdrop-blur-md border-green-200 h-full">
+            <Card className="bg-gradient-to-br from-indigo-100 to-indigo-50 backdrop-blur-md border-indigo-200 h-full">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-gray-900">
-                  <BarChart3 className="h-5 w-5 text-green-500" />
-                  Mood Tracker
+                  <FileText className="h-5 w-5 text-indigo-500" />
+                  Therapy Plans
                 </CardTitle>
-                <CardDescription className="text-gray-600">Track your emotional patterns</CardDescription>
+                <CardDescription className="text-gray-600">
+                  Get personalized AI-generated therapy plans
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <Link href="/dashboard/mood">
-                  <Button className="w-full bg-green-600 hover:bg-green-700">Track Mood</Button>
+                <Link href="/dashboard/therapy-plans">
+                  <Button className="w-full bg-indigo-600 hover:bg-indigo-700">
+                    View Plans
+                  </Button>
                 </Link>
               </CardContent>
             </Card>

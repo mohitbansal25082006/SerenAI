@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Users,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@clerk/nextjs";
@@ -29,6 +30,7 @@ const navigation = [
   { name: "AI Chat", href: "/dashboard/chat", icon: MessageSquare },
   { name: "Journal", href: "/dashboard/journal", icon: BookOpen },
   { name: "Mood Tracker", href: "/dashboard/mood", icon: BarChart3 },
+  { name: "Therapy Plans", href: "/dashboard/therapy-plans", icon: FileText },
   { name: "Insights", href: "/dashboard/insights", icon: Brain },
   { name: "Activities", href: "/dashboard/activities", icon: Activity },
   { name: "Community", href: "/dashboard/community", icon: Users },

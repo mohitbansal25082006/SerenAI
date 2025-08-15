@@ -10,6 +10,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model TherapyPlan {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  description String
+  goals     String[] // Array of goals for the therapy plan
+  activities String[] // Array of recommended activities
+  resources String[] // Array of recommended resources
+  duration  Int      // Duration in days
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions TherapySession[]
+
+  @@map("therapy_plans")
+}
+
+model TherapySession {
+  id        String   @id @default(cuid())
+  planId    String
+  title     String
+  notes     String?
+  mood      Float?   // Mood rating after the session
+  completed Boolean  @default(false)
+  scheduledFor DateTime
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+
+  // Relations
+  plan TherapyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@map("therapy_sessions")
+}
+
 model User {
   id        String   @id @default(cuid())
   clerkId   String   @unique
@@ -29,6 +66,7 @@ model User {
   savedPosts     SavedPost[]
   postLikes      PostLike[]
   replies        Reply[]
+  therapyPlans   TherapyPlan[]
 
   @@map("users")
 }
