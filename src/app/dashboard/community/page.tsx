@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   ChevronLeft, 
   Search, 
@@ -80,6 +80,10 @@ export default function CommunityForumPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { collapsed } = useSidebar();
   const { user } = useUser();
+  
+  // Create a ref for the community chat section
+  const communityChatSectionRef = useRef<HTMLDivElement>(null);
+  
   const [newPost, setNewPost] = useState({
     title: "",
     content: "",
@@ -135,6 +139,13 @@ export default function CommunityForumPage() {
     "#MoodTracking", "#JournalingTips", "#Mindfulness", "#AnxietySupport", "#SelfCare",
     "#Meditation", "#Therapy", "#WellnessJourney", "#MentalHealth", "#SelfImprovement"
   ];
+
+  // Function to scroll to the community chat section
+  const scrollToCommunityChat = () => {
+    if (communityChatSectionRef.current) {
+      communityChatSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   // Fetch posts - using useCallback to prevent unnecessary re-renders
   const fetchPosts = useCallback(async () => {
@@ -465,6 +476,7 @@ export default function CommunityForumPage() {
             </Dialog>
           </div>
         </div>
+
         {/* Hero Section */}
         <div className="mb-10">
           <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
@@ -480,14 +492,15 @@ export default function CommunityForumPage() {
                     Connect with other users, share your experiences, and get support on your mental wellness journey. Our community is here to help you grow and learn together.
                   </p>
                   <div className="flex flex-wrap gap-3">
-                    <Link href="/dashboard/community">
-                      <Button className="bg-white text-blue-600 hover:bg-gray-100 shadow-md">
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Browse Discussions
-                      </Button>
-                    </Link>
+                    <Button 
+                      className="bg-white text-blue-600 hover:bg-gray-100 shadow-md"
+                      onClick={scrollToCommunityChat}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Browse Discussions
+                    </Button>
                     <Link href="/dashboard/community/saved">
-                      <Button variant="outline" className="border-white text-white hover:bg-white hover:text-blue-600">
+                      <Button className="bg-white text-blue-600 hover:bg-gray-100 shadow-md">
                         <Bookmark className="h-4 w-4 mr-2" />
                         Saved Posts
                       </Button>
@@ -508,6 +521,7 @@ export default function CommunityForumPage() {
             </CardContent>
           </Card>
         </div>
+
         {/* Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
           <Card className="border-0 shadow-sm bg-white">
@@ -572,249 +586,257 @@ export default function CommunityForumPage() {
             </CardContent>
           </Card>
         </div>
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Main Content */}
-          <div className="flex-1">
-            {/* Search and Filter */}
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search discussions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-white border-gray-200 shadow-sm focus:shadow-md transition-shadow"
-                />
-              </div>
-              <div className="flex gap-2">
-                <div className="relative">
-                  <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="pl-10 pr-8 py-2 bg-white border border-gray-200 rounded-md shadow-sm focus:shadow-md transition-shadow appearance-none"
-                  >
-                    <option value="latest">Latest</option>
-                    <option value="popular">Most Popular</option>
-                    <option value="replies">Most Replies</option>
-                    <option value="views">Most Viewed</option>
-                  </select>
-                  <ArrowUpDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+
+        {/* Community Chat Section - Added ref here */}
+        <div ref={communityChatSectionRef}>
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Main Content */}
+            <div className="flex-1">
+              {/* Search and Filter */}
+              <div className="flex flex-col md:flex-row gap-4 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search discussions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 bg-white border-gray-200 shadow-sm focus:shadow-md transition-shadow"
+                  />
                 </div>
-                <Button variant="outline" className="shadow-sm">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filters
-                </Button>
-              </div>
-            </div>
-            {/* Tabs */}
-            <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">
-                {categories.map((category) => (
-                  <TabsTrigger 
-                    key={category.id} 
-                    value={category.id}
-                    className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 whitespace-nowrap"
-                  >
-                    <div className="flex items-center gap-1">
-                      {category.icon}
-                      <span className="hidden md:inline">{category.name}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {category.count}
-                      </Badge>
-                    </div>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <TabsContent value={selectedCategory} className="space-y-4">
-                {isLoading ? (
-                  <div className="flex justify-center py-12">
-                    <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+                <div className="flex gap-2">
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="pl-10 pr-8 py-2 bg-white border border-gray-200 rounded-md shadow-sm focus:shadow-md transition-shadow appearance-none"
+                    >
+                      <option value="latest">Latest</option>
+                      <option value="popular">Most Popular</option>
+                      <option value="replies">Most Replies</option>
+                      <option value="views">Most Viewed</option>
+                    </select>
+                    <ArrowUpDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
                   </div>
-                ) : sortedPosts.length > 0 ? (
-                  sortedPosts.map((post) => (
-                    <Card key={post.id} className="border-gray-200 hover:shadow-md transition-all duration-300">
-                      <CardContent className="pt-6">
-                        <div className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="p-1 h-auto"
-                              onClick={() => handleLikePost(post.id)}
-                            >
-                              <Heart className={`h-5 w-5 ${post.isLiked ? 'text-red-500 fill-current' : 'text-gray-400'}`} />
-                            </Button>
-                            <span className="text-xs text-gray-500">{post.likes}</span>
-                          </div>
-                          
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                {post.isPinned && <Pin className="h-4 w-4 text-yellow-500" />}
-                                {post.isLocked && <Lock className="h-4 w-4 text-gray-500" />}
-                                {post.isSolved && <CheckCircle className="h-4 w-4 text-green-500" />}
-                                {post.trending && <Flame className="h-4 w-4 text-orange-500" />}
-                                <h3 className="font-medium hover:text-blue-600 cursor-pointer">
-                                  {post.title}
-                                </h3>
-                              </div>
-                              <Badge className={categories.find(c => c.id === post.category)?.color}>
-                                {categories.find(c => c.id === post.category)?.name}
-                              </Badge>
+                  <Button variant="outline" className="shadow-sm">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filters
+                  </Button>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">
+                  {categories.map((category) => (
+                    <TabsTrigger 
+                      key={category.id} 
+                      value={category.id}
+                      className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-1">
+                        {category.icon}
+                        <span className="hidden md:inline">{category.name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {category.count}
+                        </Badge>
+                      </div>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <TabsContent value={selectedCategory} className="space-y-4">
+                  {isLoading ? (
+                    <div className="flex justify-center py-12">
+                      <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+                    </div>
+                  ) : sortedPosts.length > 0 ? (
+                    sortedPosts.map((post) => (
+                      <Card key={post.id} className="border-gray-200 hover:shadow-md transition-all duration-300">
+                        <CardContent className="pt-6">
+                          <div className="flex gap-4">
+                            <div className="flex flex-col items-center">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="p-1 h-auto"
+                                onClick={() => handleLikePost(post.id)}
+                              >
+                                <Heart className={`h-5 w-5 ${post.isLiked ? 'text-red-500 fill-current' : 'text-gray-400'}`} />
+                              </Button>
+                              <span className="text-xs text-gray-500">{post.likes}</span>
                             </div>
                             
-                            <p className="text-gray-600 mb-3 line-clamp-2">
-                              {post.content}
-                            </p>
-                            
-                            <div className="flex flex-wrap gap-1 mb-3">
-                              {post.tags.map((tag) => (
-                                <Badge key={tag} variant="outline" className="text-xs">
-                                  #{tag}
-                                </Badge>
-                              ))}
-                            </div>
-                            
-                            <div className="flex items-center justify-between text-sm text-gray-500">
-                              <div className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarImage src={post.author?.avatar} />
-                                    <AvatarFallback>
-                                      {post.author?.name ? post.author.name.split(' ').map(n => n[0]).join('') : 'U'}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span>{post.author?.name || 'Unknown User'}</span>
-                                  {post.author?.role && (
-                                    <Badge variant="outline" className="text-xs">
-                                      {post.author.role}
-                                    </Badge>
-                                  )}
+                                  {post.isPinned && <Pin className="h-4 w-4 text-yellow-500" />}
+                                  {post.isLocked && <Lock className="h-4 w-4 text-gray-500" />}
+                                  {post.isSolved && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                  {post.trending && <Flame className="h-4 w-4 text-orange-500" />}
+                                  <h3 className="font-medium hover:text-blue-600 cursor-pointer">
+                                    {post.title}
+                                  </h3>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  <span>{formatDate(post.createdAt)}</span>
-                                </div>
+                                <Badge className={categories.find(c => c.id === post.category)?.color}>
+                                  {categories.find(c => c.id === post.category)?.name}
+                                </Badge>
                               </div>
                               
-                              <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1">
-                                  <MessageCircle className="h-3 w-3" />
-                                  <span>{post.replies}</span>
+                              <p className="text-gray-600 mb-3 line-clamp-2">
+                                {post.content}
+                              </p>
+                              
+                              <div className="flex flex-wrap gap-1 mb-3">
+                                {post.tags.map((tag) => (
+                                  <Badge key={tag} variant="outline" className="text-xs">
+                                    #{tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                              
+                              <div className="flex items-center justify-between text-sm text-gray-500">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarImage src={post.author?.avatar} />
+                                      <AvatarFallback>
+                                        {post.author?.name ? post.author.name.split(' ').map(n => n[0]).join('') : 'U'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span>{post.author?.name || 'Unknown User'}</span>
+                                    {post.author?.role && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {post.author.role}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{formatDate(post.createdAt)}</span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <Eye className="h-3 w-3" />
-                                  <span>{post.views}</span>
+                                
+                                <div className="flex items-center gap-4">
+                                  <div className="flex items-center gap-1">
+                                    <MessageCircle className="h-3 w-3" />
+                                    <span>{post.replies}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Eye className="h-3 w-3" />
+                                    <span>{post.views}</span>
+                                  </div>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="p-1 h-auto"
+                                    onClick={() => handleSavePost(post.id)}
+                                  >
+                                    <Bookmark className={`h-4 w-4 ${post.isSaved ? 'text-blue-500 fill-current' : 'text-gray-400'}`} />
+                                  </Button>
                                 </div>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  className="p-1 h-auto"
-                                  onClick={() => handleSavePost(post.id)}
-                                >
-                                  <Bookmark className={`h-4 w-4 ${post.isSaved ? 'text-blue-500 fill-current' : 'text-gray-400'}`} />
-                                </Button>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Card className="text-center py-12">
+                      <CardContent>
+                        <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium mb-2">No discussions found</h3>
+                        <p className="text-gray-600 mb-4">
+                          Try adjusting your search or browse other categories.
+                        </p>
+                        <Button onClick={() => {
+                          setSearchQuery("");
+                          setSelectedCategory("all");
+                          setSelectedTrendingTopic(null);
+                        }}>
+                          Clear Filters
+                        </Button>
                       </CardContent>
                     </Card>
-                  ))
-                ) : (
-                  <Card className="text-center py-12">
-                    <CardContent>
-                      <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No discussions found</h3>
-                      <p className="text-gray-600 mb-4">
-                        Try adjusting your search or browse other categories.
-                      </p>
-                      <Button onClick={() => {
-                        setSearchQuery("");
-                        setSelectedCategory("all");
-                        setSelectedTrendingTopic(null);
-                      }}>
-                        Clear Filters
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-          {/* Sidebar */}
-          <div className="w-full lg:w-80 space-y-6">
-            {/* About Community */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg">About the Community</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">
-                  The SerenAI Community is a safe space for users to share experiences, ask questions, and support each other on their mental wellness journey.
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">Be respectful and kind</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">Share your experiences</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">Support others on their journey</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            {/* Trending Topics */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Trending Topics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {trendingTopics.map((topic, index) => (
-                    <div 
-                      key={index} 
-                      className={`flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors ${selectedTrendingTopic === topic ? 'bg-blue-50' : ''}`}
-                      onClick={() => handleTrendingTopicClick(topic)}
-                    >
-                      <span className={`text-blue-600 ${selectedTrendingTopic === topic ? 'font-medium' : ''}`}>{topic}</span>
-                      <Badge variant="outline">
-                        {posts.filter(post => 
-                          post.title.toLowerCase().includes(topic.replace('#', '').toLowerCase()) ||
-                          post.content.toLowerCase().includes(topic.replace('#', '').toLowerCase()) ||
-                          post.tags.some(tag => tag.toLowerCase().includes(topic.replace('#', '').toLowerCase()))
-                        ).length} posts
-                      </Badge>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
+
+            {/* Sidebar */}
+            <div className="w-full lg:w-80 space-y-6">
+              {/* About Community */}
+              <Card className="border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-lg">About the Community</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    The SerenAI Community is a safe space for users to share experiences, ask questions, and support each other on their mental wellness journey.
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span className="text-sm">Be respectful and kind</span>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            {/* Community Guidelines */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg">Community Guidelines</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-3">
-                  Please read and follow our community guidelines to maintain a positive and supportive environment.
-                </p>
-                <Link href="/dashboard/community/guidelines">
-                  <Button variant="outline" className="w-full">
-                    Read Guidelines
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span className="text-sm">Share your experiences</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span className="text-sm">Support others on their journey</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Trending Topics */}
+              <Card className="border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Trending Topics
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {trendingTopics.map((topic, index) => (
+                      <div 
+                        key={index} 
+                        className={`flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors ${selectedTrendingTopic === topic ? 'bg-blue-50' : ''}`}
+                        onClick={() => handleTrendingTopicClick(topic)}
+                      >
+                        <span className={`text-blue-600 ${selectedTrendingTopic === topic ? 'font-medium' : ''}`}>{topic}</span>
+                        <Badge variant="outline">
+                          {posts.filter(post => 
+                            post.title.toLowerCase().includes(topic.replace('#', '').toLowerCase()) ||
+                            post.content.toLowerCase().includes(topic.replace('#', '').toLowerCase()) ||
+                            post.tags.some(tag => tag.toLowerCase().includes(topic.replace('#', '').toLowerCase()))
+                          ).length} posts
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Community Guidelines */}
+              <Card className="border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-lg">Community Guidelines</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-3">
+                    Please read and follow our community guidelines to maintain a positive and supportive environment.
+                  </p>
+                  <Link href="/dashboard/community/guidelines">
+                    <Button variant="outline" className="w-full">
+                      Read Guidelines
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
