@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
 import { toast } from "sonner";
-
 // Define types for SpeechRecognition API
 interface SpeechRecognitionResult {
   transcript: string;
@@ -47,28 +46,24 @@ interface Window {
   };
   speechSynthesis: SpeechSynthesis;
 }
-
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string | Date;
 }
-
 interface Conversation {
   id: string;
   title: string;
   createdAt: string;
   messageCount: number;
 }
-
 interface ApiMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
 }
-
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -95,7 +90,6 @@ export default function ChatPage() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef<string>("");
   const { collapsed } = useSidebar();
-
   // Check if browser supports speech recognition and text-to-speech
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -135,7 +129,6 @@ export default function ChatPage() {
       }
     }
   }, []);
-
   // Load conversation history
   const loadConversations = async () => {
     try {
@@ -151,24 +144,19 @@ export default function ChatPage() {
       toast.error('Failed to load conversation history');
     }
   };
-
   useEffect(() => {
     loadConversations();
   }, []);
-
   // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-
   // Text-to-speech function
   const speakText = (text: string) => {
     if (!ttsSupported || !ttsEnabled) return;
@@ -182,7 +170,6 @@ export default function ChatPage() {
     utterance.pitch = 1.0;
     window.speechSynthesis.speak(utterance);
   };
-
   // Toggle text-to-speech
   const toggleTts = () => {
     if (!ttsSupported) {
@@ -197,7 +184,6 @@ export default function ChatPage() {
       window.speechSynthesis.cancel();
     }
   };
-
   // Speak assistant messages when they arrive
   useEffect(() => {
     if (messages.length > 0) {
@@ -214,7 +200,6 @@ export default function ChatPage() {
       }
     };
   }, [messages]);
-
   const toggleListening = () => {
     if (!speechSupported) {
       toast.error('Speech recognition is not supported in your browser.');
@@ -231,7 +216,6 @@ export default function ChatPage() {
       setIsListening(true);
     }
   };
-
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputValue;
     if (messageToSend.trim() === "" || isLoading) return;
@@ -286,14 +270,12 @@ export default function ChatPage() {
       setIsLoading(false);
     }
   };
-
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
-
   const handleClearChat = () => {
     setMessages([{
       id: "1",
@@ -304,7 +286,6 @@ export default function ChatPage() {
     setConversationId(null);
     inputRef.current?.focus();
   };
-
   const handleSaveConversation = async () => {
     if (messages.length <= 1) {
       toast.error('Not enough messages to save.');
@@ -339,7 +320,6 @@ export default function ChatPage() {
       setIsSaving(false);
     }
   };
-
   const handleLoadConversation = async (id: string) => {
     try {
       const response = await fetch(`/api/chat/conversation/${id}`);
@@ -364,7 +344,6 @@ export default function ChatPage() {
       toast.error('Failed to load conversation.');
     }
   };
-
   const handleDeleteConversation = async (id: string) => {
     setIsDeleting(id);
     try {
@@ -389,12 +368,10 @@ export default function ChatPage() {
       setIsDeleting(null);
     }
   };
-
   const formatTime = (date: Date | string) => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     return dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
-
   const formatDate = (date: string | Date) => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     return dateObj.toLocaleDateString("en-US", {
@@ -403,7 +380,6 @@ export default function ChatPage() {
       year: "numeric",
     });
   };
-
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${
       collapsed ? "lg:pl-20" : "lg:pl-64"
@@ -474,7 +450,7 @@ export default function ChatPage() {
                         className="cursor-pointer"
                         onClick={() => handleLoadConversation(conversation.id)}
                       >
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-start pr-8">
                           <div>
                             <h3 className="font-medium">{conversation.title}</h3>
                             <p className="text-sm text-gray-500">
@@ -489,7 +465,7 @@ export default function ChatPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                        className="absolute right-2 top-2 h-6 w-6"
                         onClick={() => handleDeleteConversation(conversation.id)}
                         disabled={isDeleting === conversation.id}
                       >
