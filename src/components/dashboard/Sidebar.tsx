@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -23,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
+import Image from "next/image";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
@@ -59,7 +59,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile toggle - positioned to not overlap with header content */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
+      <div className={`lg:hidden fixed z-50 transition-all duration-300 ${sidebarOpen ? "top-4 left-64" : "top-4 left-4"}`}>
         <Button
           variant="outline"
           size="icon"
@@ -70,7 +70,6 @@ export default function Sidebar() {
           {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
       </div>
-
       {/* Sidebar */}
       <div
         className={cn(
@@ -89,8 +88,13 @@ export default function Sidebar() {
                 collapsed ? "justify-center w-full" : ""
               )}
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                <Brain className="h-5 w-5 text-white" />
+              <div className="relative w-8 h-8 flex-shrink-0">
+                <Image 
+                  src="/logo.png" 
+                  alt="SerenAI Logo" 
+                  fill
+                  className="object-contain"
+                />
               </div>
               <span className={`text-lg font-bold text-gray-900 ${logoTextClass}`}>SerenAI</span>
             </Link>
@@ -108,7 +112,6 @@ export default function Sidebar() {
               </Button>
             </div>
           </div>
-
           {/* Navigation */}
           <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
@@ -135,7 +138,6 @@ export default function Sidebar() {
               );
             })}
           </nav>
-
           {/* Bottom controls */}
           <div className="p-3 border-t border-gray-200">
             <div className={cn("flex items-center gap-2", collapsed ? "justify-center" : "")}>
@@ -167,7 +169,6 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
-
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
