@@ -1,6 +1,4 @@
-// E:\serenai\src\components\dashboard\Header.tsx
 "use client";
-
 import { Bell, Home, ChevronRight, HelpCircle, Users, Video, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserButton } from "@clerk/nextjs";
@@ -97,17 +95,20 @@ export default function Header() {
         collapsed ? "lg:pl-20" : "lg:pl-64"
       }`}
     >
-      <div className="flex items-center justify-between h-16 px-6">
+      <div className="flex items-center justify-between h-16 px-4 sm:px-6">
         <div className="flex items-center">
+          {/* Mobile menu button placeholder - positioned to not overlap with logo */}
+          <div className="lg:hidden w-10 mr-2"></div>
+          
           {/* SerenAI text that links to landing page */}
-          <Link href="/" className="mr-6">
-            <span className="text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
+          <Link href="/" className="mr-4 sm:mr-6">
+            <span className="text-lg sm:text-xl font-bold text-gray-900 hover:text-blue-600 transition-colors">
               SerenAI
             </span>
           </Link>
           
-          {/* Breadcrumb Navigation */}
-          <nav className="flex items-center space-x-1 text-sm">
+          {/* Breadcrumb Navigation - hidden on small screens */}
+          <nav className="hidden sm:flex items-center space-x-1 text-sm">
             <Link 
               href="/dashboard" 
               className="flex items-center text-gray-500 hover:text-gray-700"
@@ -133,11 +134,11 @@ export default function Header() {
           </nav>
         </div>
         
-        <div className="flex items-center space-x-4">
-          {/* User greeting */}
+        <div className="flex items-center space-x-2 sm:space-x-4">
+          {/* User greeting - hidden on small screens */}
           <div className="hidden md:flex flex-col items-end">
             <span className="text-sm text-gray-500">Welcome back,</span>
-            <span className="font-medium">
+            <span className="font-medium truncate max-w-[120px]">
               {userDisplayName}
             </span>
           </div>

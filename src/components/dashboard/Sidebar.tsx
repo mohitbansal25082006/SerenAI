@@ -58,7 +58,7 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile toggle */}
+      {/* Mobile toggle - positioned to not overlap with header content */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <Button
           variant="outline"
@@ -84,9 +84,12 @@ export default function Sidebar() {
           <div className="flex items-center justify-between h-16 px-3 border-b border-gray-200">
             <Link
               href="/"
-              className={cn("flex items-center gap-2", collapsed ? "justify-center w-full" : "")}
+              className={cn(
+                "flex items-center gap-2",
+                collapsed ? "justify-center w-full" : ""
+              )}
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                 <Brain className="h-5 w-5 text-white" />
               </div>
               <span className={`text-lg font-bold text-gray-900 ${logoTextClass}`}>SerenAI</span>
@@ -126,7 +129,7 @@ export default function Sidebar() {
                   title={collapsed ? item.name : undefined}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <Icon className="mr-3 h-5 w-5" />
+                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   <span className={`${navLabelClass} truncate`}>{item.name}</span>
                 </Link>
               );
@@ -145,7 +148,7 @@ export default function Sidebar() {
                 onClick={handleSignOut}
                 title={collapsed ? "Sign out" : undefined}
               >
-                <LogOut className="mr-3 h-5 w-5" />
+                <LogOut className="mr-3 h-5 w-5 flex-shrink-0" />
                 <span className={navLabelClass}>Sign Out</span>
               </Button>
             </div>
