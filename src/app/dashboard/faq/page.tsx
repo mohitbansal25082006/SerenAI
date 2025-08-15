@@ -461,9 +461,9 @@ export default function FAQPage() {
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
-                      <Link href="/dashboard/community-forum">
+                      <Link href="/dashboard/community">
                         <Users className="h-4 w-4 mr-2" />
-                        Community Forum
+                        Community
                       </Link>
                     </Button>
                   </div>

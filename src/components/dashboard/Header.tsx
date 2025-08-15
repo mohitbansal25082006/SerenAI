@@ -74,7 +74,7 @@ export default function Header() {
       else if (label === 'faq') label = 'FAQ';
       else if (label === 'contact-support') label = 'Contact Support';
       else if (label === 'documentation') label = 'Documentation';
-      else if (label === 'community-forum') label = 'Community Forum';
+      else if (label === 'community') label = 'Community';
       else if (label === 'video-tutorials') label = 'Video Tutorials';
       else if (label === 'webinars-workshops') label = 'Webinars & Workshops';
       else label = label.charAt(0).toUpperCase() + label.slice(1);
@@ -174,9 +174,9 @@ export default function Header() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/community-forum">
+                <Link href="/dashboard/community">
                   <Users className="h-4 w-4 mr-2" />
-                  Community Forum
+                  Community
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>

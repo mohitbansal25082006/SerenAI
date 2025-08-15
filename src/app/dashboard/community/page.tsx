@@ -1,6 +1,5 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   ChevronLeft, 
   Search, 
@@ -10,10 +9,7 @@ import {
   MessageSquare,
   Heart,
   Bookmark,
-  Share,
-  Clock,
   TrendingUp,
-  Circle,
   Calendar,
   ArrowUpDown,
   Pin,
@@ -23,19 +19,8 @@ import {
   Eye,
   HelpCircle,
   X,
-  Save,
-  FileText,
-  Star,
   MessageCircle,
-  Hash,
-  User,
-  Settings,
-  LogOut,
-  Bell,
-  Home,
-  BookOpen,
-  BarChart3,
-  Activity
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,12 +34,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useUser } from "@clerk/nextjs";
 
 interface ForumPost {
   id: string;
   title: string;
   content: string;
   author: {
+    id: string;
     name: string;
     avatar?: string;
     role?: string;
@@ -70,6 +57,7 @@ interface ForumPost {
   isSolved: boolean;
   trending: boolean;
   isSaved?: boolean;
+  isLiked?: boolean;
 }
 
 interface ForumCategory {
@@ -85,12 +73,13 @@ export default function CommunityForumPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState("latest");
-  const [savedPosts, setSavedPosts] = useState<string[]>([]);
   const [isNewPostModalOpen, setIsNewPostModalOpen] = useState(false);
-  const [isGuidelinesModalOpen, setIsGuidelinesModalOpen] = useState(false);
   const [selectedTrendingTopic, setSelectedTrendingTopic] = useState<string | null>(null);
+  const [posts, setPosts] = useState<ForumPost[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { collapsed } = useSidebar();
-
+  const { user } = useUser();
   const [newPost, setNewPost] = useState({
     title: "",
     content: "",
@@ -98,15 +87,15 @@ export default function CommunityForumPage() {
     tags: [] as string[],
     currentTag: ""
   });
-
-  const categories: ForumCategory[] = [
+  
+  const [categories, setCategories] = useState<ForumCategory[]>([
     { 
       id: "all", 
       name: "All Topics", 
       description: "View all forum posts", 
       icon: <MessageSquare className="h-5 w-5" />, 
       color: "bg-blue-100 text-blue-800",
-      count: 128
+      count: 0
     },
     { 
       id: "general", 
@@ -114,7 +103,7 @@ export default function CommunityForumPage() {
       description: "General talk about SerenAI", 
       icon: <MessageSquare className="h-5 w-5" />, 
       color: "bg-gray-100 text-gray-800",
-      count: 42
+      count: 0
     },
     { 
       id: "features", 
@@ -122,7 +111,7 @@ export default function CommunityForumPage() {
       description: "Discuss new features and updates", 
       icon: <TrendingUp className="h-5 w-5" />, 
       color: "bg-green-100 text-green-800",
-      count: 36
+      count: 0
     },
     { 
       id: "support", 
@@ -130,7 +119,7 @@ export default function CommunityForumPage() {
       description: "Get help from the community", 
       icon: <HelpCircle className="h-5 w-5" />, 
       color: "bg-purple-100 text-purple-800",
-      count: 28
+      count: 0
     },
     { 
       id: "feedback", 
@@ -138,155 +127,59 @@ export default function CommunityForumPage() {
       description: "Share your feedback and ideas", 
       icon: <Heart className="h-5 w-5" />, 
       color: "bg-pink-100 text-pink-800",
-      count: 22
+      count: 0
     },
-  ];
+  ]);
 
   const trendingTopics = [
     "#MoodTracking", "#JournalingTips", "#Mindfulness", "#AnxietySupport", "#SelfCare",
     "#Meditation", "#Therapy", "#WellnessJourney", "#MentalHealth", "#SelfImprovement"
   ];
 
-  const communityGuidelines = [
-    "Be respectful and kind to all community members",
-    "Share your experiences and support others on their journey",
-    "No spam or self-promotion without permission",
-    "Respect privacy and confidentiality",
-    "Report inappropriate content to moderators",
-    "Use appropriate language and avoid offensive content",
-    "Stay on topic and keep discussions relevant",
-    "Be open-minded and consider different perspectives"
-  ];
-
-  const initialForumPosts: ForumPost[] = [
-    {
-      id: "1",
-      title: "How has SerenAI helped you in your mental wellness journey?",
-      content: "I wanted to start a discussion about how SerenAI has positively impacted people's mental health. For me, it's been a game-changer in helping me track my mood patterns and understand my emotions better.",
-      author: {
-        name: "Sarah Johnson",
-        avatar: "",
-        role: "Community Leader"
-      },
-      category: "general",
-      tags: ["personal-experience", "mental-health"],
-      likes: 42,
-      replies: 18,
-      views: 256,
-      createdAt: "2023-06-15",
-      isPinned: true,
-      isLocked: false,
-      isSolved: false,
-      trending: true
-    },
-    {
-      id: "2",
-      title: "Feature Request: Dark Mode for Journal Entries",
-      content: "I would love to see a dark mode option for the journal entries. The bright white background can be harsh on the eyes, especially when writing at night. Has anyone else found this to be an issue?",
-      author: {
-        name: "Alex Chen",
-        avatar: "",
-        role: "Premium User"
-      },
-      category: "features",
-      tags: ["feature-request", "ui", "dark-mode"],
-      likes: 28,
-      replies: 12,
-      views: 142,
-      createdAt: "2023-06-14",
-      isPinned: false,
-      isLocked: false,
-      isSolved: true,
-      trending: false
-    },
-    {
-      id: "3",
-      title: "Tips for new users getting started with SerenAI",
-      content: "I thought I'd share some tips that helped me when I first started using SerenAI. These might be helpful for others who are just beginning their mental wellness journey with the app.",
-      author: {
-        name: "Michael Torres",
-        avatar: "",
-        role: "Community Guide"
-      },
-      category: "support",
-      tags: ["tips", "getting-started", "beginners"],
-      likes: 56,
-      replies: 24,
-      views: 312,
-      createdAt: "2023-06-13",
-      isPinned: true,
-      isLocked: false,
-      isSolved: false,
-      trending: true
-    },
-    {
-      id: "4",
-      title: "Integration with Apple Health - any updates?",
-      content: "I remember reading about planned integration with Apple Health a few months ago. Has there been any update on when this feature might be available? Really looking forward to seeing my wellness data in one place.",
-      author: {
-        name: "Jamie Wilson",
-        avatar: "",
-        role: "Premium User"
-      },
-      category: "features",
-      tags: ["integration", "apple-health", "feature-request"],
-      likes: 15,
-      replies: 7,
-      views: 98,
-      createdAt: "2023-06-12",
-      isPinned: false,
-      isLocked: false,
-      isSolved: false,
-      trending: false
-    },
-    {
-      id: "5",
-      title: "Mood tracking accuracy - how does it work?",
-      content: "I'm curious about how the mood tracking feature works. Does it use AI to analyze my journal entries, or is it purely based on my manual inputs? Sometimes the insights seem surprisingly accurate!",
-      author: {
-        name: "Taylor Kim",
-        avatar: "",
-        role: "Free User"
-      },
-      category: "support",
-      tags: ["mood-tracking", "ai", "how-it-works"],
-      likes: 22,
-      replies: 9,
-      views: 134,
-      createdAt: "2023-06-11",
-      isPinned: false,
-      isLocked: false,
-      isSolved: true,
-      trending: false
-    },
-    {
-      id: "6",
-      title: "Weekly Challenge: Gratitude Journaling",
-      content: "I'm starting a weekly challenge for anyone interested. For the next 7 days, let's all try to write at least 3 gratitude journal entries per day. At the end of the week, we can share how it impacted our mood and outlook!",
-      author: {
-        name: "Jordan Patel",
-        avatar: "",
-        role: "Community Leader"
-      },
-      category: "general",
-      tags: ["challenge", "gratitude", "journaling"],
-      likes: 37,
-      replies: 15,
-      views: 189,
-      createdAt: "2023-06-10",
-      isPinned: false,
-      isLocked: false,
-      isSolved: false,
-      trending: true
+  // Fetch posts - using useCallback to prevent unnecessary re-renders
+  const fetchPosts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/posts");
+      if (response.ok) {
+        const data = await response.json();
+        setPosts(data.posts || []); // Ensure we always have an array
+        
+        // Update category counts
+        const categoryCounts = (data.posts || []).reduce((acc: Record<string, number>, post: ForumPost) => {
+          acc[post.category] = (acc[post.category] || 0) + 1;
+          acc.all = (acc.all || 0) + 1;
+          return acc;
+        }, {});
+        
+        setCategories(prevCategories => 
+          prevCategories.map(cat => ({
+            ...cat,
+            count: categoryCounts[cat.id] || 0
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      setPosts([]); // Set empty array on error
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  }, []);
 
-  const [forumPosts, setForumPosts] = useState<ForumPost[]>(initialForumPosts.map(post => ({
-    ...post,
-    isSaved: savedPosts.includes(post.id)
-  })));
+  // Initial fetch
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
 
-  const filteredPosts = forumPosts.filter(post => {
+  // Refresh posts every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchPosts();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchPosts]);
+
+  const filteredPosts = posts.filter(post => {
     const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -331,51 +224,105 @@ export default function CommunityForumPage() {
     });
   };
 
-  const toggleSavePost = (postId: string) => {
-    if (savedPosts.includes(postId)) {
-      setSavedPosts(savedPosts.filter(id => id !== postId));
-    } else {
-      setSavedPosts([...savedPosts, postId]);
+  const handleLikePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}/like`, {
+        method: "POST",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update the post in the list
+        setPosts(posts.map(post => 
+          post.id === postId 
+            ? { 
+                ...post, 
+                likes: data.likes,
+                isLiked: data.liked
+              } 
+            : post
+        ));
+      }
+    } catch (error) {
+      console.error("Error liking post:", error);
     }
-    
-    setForumPosts(forumPosts.map(post => 
-      post.id === postId ? { ...post, isSaved: !post.isSaved } : post
-    ));
   };
 
-  const handleCreatePost = () => {
+  const handleSavePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}/save`, {
+        method: "POST",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update the post in the list
+        setPosts(posts.map(post => 
+          post.id === postId 
+            ? { ...post, isSaved: data.saved } 
+            : post
+        ));
+      }
+    } catch (error) {
+      console.error("Error saving post:", error);
+    }
+  };
+
+  const handleCreatePost = async () => {
     if (!newPost.title.trim() || !newPost.content.trim()) return;
     
-    const newPostObj: ForumPost = {
-      id: (forumPosts.length + 1).toString(),
-      title: newPost.title,
-      content: newPost.content,
-      author: {
-        name: "You",
-        role: "Community Member"
-      },
-      category: newPost.category,
-      tags: newPost.tags,
-      likes: 0,
-      replies: 0,
-      views: 0,
-      createdAt: new Date().toISOString().split('T')[0],
-      isPinned: false,
-      isLocked: false,
-      isSolved: false,
-      trending: false,
-      isSaved: false
-    };
-    
-    setForumPosts([newPostObj, ...forumPosts]);
-    setNewPost({
-      title: "",
-      content: "",
-      category: "general",
-      tags: [],
-      currentTag: ""
-    });
-    setIsNewPostModalOpen(false);
+    try {
+      const response = await fetch("/api/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: newPost.title,
+          content: newPost.content,
+          category: newPost.category,
+          tags: newPost.tags,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Add the new post to the list
+        const newPostObj: ForumPost = {
+          ...data.post,
+          likes: 0,
+          replies: 0,
+          views: 0,
+          isPinned: false,
+          isLocked: false,
+          isSolved: false,
+          trending: false,
+          isSaved: false,
+          isLiked: false,
+        };
+        
+        setPosts([newPostObj, ...posts]);
+        setNewPost({
+          title: "",
+          content: "",
+          category: "general",
+          tags: [],
+          currentTag: ""
+        });
+        setIsNewPostModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Error creating post:", error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchPosts();
+    setIsRefreshing(false);
   };
 
   const handleAddTag = () => {
@@ -411,103 +358,113 @@ export default function CommunityForumPage() {
             </Link>
             <h1 className="text-3xl font-bold">Community Forum</h1>
           </div>
-          <Dialog open={isNewPostModalOpen} onOpenChange={setIsNewPostModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                New Post
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Create a New Post</DialogTitle>
-                <DialogDescription>
-                  Share your thoughts, questions, or experiences with the community.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="Enter a title for your post"
-                    value={newPost.title}
-                    onChange={(e) => setNewPost({...newPost, title: e.target.value})}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="category">Category</Label>
-                  <Select value={newPost.category} onValueChange={(value) => setNewPost({...newPost, category: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.filter(c => c.id !== "all").map(category => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="content">Content</Label>
-                  <Textarea
-                    id="content"
-                    placeholder="What would you like to share?"
-                    rows={5}
-                    value={newPost.content}
-                    onChange={(e) => setNewPost({...newPost, content: e.target.value})}
-                  />
-                </div>
-                
-                <div>
-                  <Label>Tags</Label>
-                  <div className="flex gap-2 mb-2">
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Dialog open={isNewPostModalOpen} onOpenChange={setIsNewPostModalOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  New Post
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Create a New Post</DialogTitle>
+                  <DialogDescription>
+                    Share your thoughts, questions, or experiences with the community.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="title">Title</Label>
                     <Input
-                      placeholder="Add a tag"
-                      value={newPost.currentTag}
-                      onChange={(e) => setNewPost({...newPost, currentTag: e.target.value})}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddTag();
-                        }
-                      }}
+                      id="title"
+                      placeholder="Enter a title for your post"
+                      value={newPost.title}
+                      onChange={(e) => setNewPost({...newPost, title: e.target.value})}
                     />
-                    <Button type="button" onClick={handleAddTag}>Add</Button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {newPost.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="gap-1">
-                        #{tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-1"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
+                  
+                  <div>
+                    <Label htmlFor="category">Category</Label>
+                    <Select value={newPost.category} onValueChange={(value) => setNewPost({...newPost, category: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.filter(c => c.id !== "all").map(category => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="content">Content</Label>
+                    <Textarea
+                      id="content"
+                      placeholder="What would you like to share?"
+                      rows={5}
+                      value={newPost.content}
+                      onChange={(e) => setNewPost({...newPost, content: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label>Tags</Label>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        placeholder="Add a tag"
+                        value={newPost.currentTag}
+                        onChange={(e) => setNewPost({...newPost, currentTag: e.target.value})}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddTag();
+                          }
+                        }}
+                      />
+                      <Button type="button" onClick={handleAddTag}>Add</Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {newPost.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="gap-1">
+                          #{tag}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTag(tag)}
+                            className="ml-1"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsNewPostModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreatePost}>
+                      Post
+                    </Button>
                   </div>
                 </div>
-                
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsNewPostModalOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreatePost}>
-                    Post
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-
         {/* Hero Section */}
         <div className="mb-10">
           <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
@@ -523,14 +480,18 @@ export default function CommunityForumPage() {
                     Connect with other users, share your experiences, and get support on your mental wellness journey. Our community is here to help you grow and learn together.
                   </p>
                   <div className="flex flex-wrap gap-3">
-                    <Button className="bg-white text-blue-600 hover:bg-gray-100 shadow-md">
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Browse Discussions
-                    </Button>
-                    <Button variant="outline" className="border-white text-white hover:bg-white hover:text-blue-600">
-                      <Bookmark className="h-4 w-4 mr-2" />
-                      Saved Posts
-                    </Button>
+                    <Link href="/dashboard/community">
+                      <Button className="bg-white text-blue-600 hover:bg-gray-100 shadow-md">
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Browse Discussions
+                      </Button>
+                    </Link>
+                    <Link href="/dashboard/community/saved">
+                      <Button variant="outline" className="border-white text-white hover:bg-white hover:text-blue-600">
+                        <Bookmark className="h-4 w-4 mr-2" />
+                        Saved Posts
+                      </Button>
+                    </Link>
                   </div>
                 </div>
                 <div className="hidden md:block">
@@ -547,7 +508,6 @@ export default function CommunityForumPage() {
             </CardContent>
           </Card>
         </div>
-
         {/* Stats Section */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
           <Card className="border-0 shadow-sm bg-white">
@@ -557,8 +517,8 @@ export default function CommunityForumPage() {
                   <Users className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">2,847</div>
-                  <div className="text-sm text-gray-600">Community Members</div>
+                  <div className="text-2xl font-bold">{categories.find(c => c.id === "all")?.count || 0}</div>
+                  <div className="text-sm text-gray-600">Total Posts</div>
                 </div>
               </div>
             </CardContent>
@@ -571,8 +531,10 @@ export default function CommunityForumPage() {
                   <MessageSquare className="h-6 w-6 text-green-600" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">1,256</div>
-                  <div className="text-sm text-gray-600">Discussions</div>
+                  <div className="text-2xl font-bold">
+                    {posts.reduce((sum, post) => sum + post.replies, 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">Replies</div>
                 </div>
               </div>
             </CardContent>
@@ -585,8 +547,10 @@ export default function CommunityForumPage() {
                   <Heart className="h-6 w-6 text-purple-600" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">8,942</div>
-                  <div className="text-sm text-gray-600">Helpful Votes</div>
+                  <div className="text-2xl font-bold">
+                    {posts.reduce((sum, post) => sum + post.likes, 0)}
+                  </div>
+                  <div className="text-sm text-gray-600">Likes</div>
                 </div>
               </div>
             </CardContent>
@@ -599,14 +563,15 @@ export default function CommunityForumPage() {
                   <CheckCircle className="h-6 w-6 text-yellow-600" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">94%</div>
-                  <div className="text-sm text-gray-600">Questions Solved</div>
+                  <div className="text-2xl font-bold">
+                    {posts.length > 0 ? Math.round((posts.filter(p => p.isSolved).length / posts.length) * 100) : 0}%
+                  </div>
+                  <div className="text-sm text-gray-600">Solved</div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
-
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Main Content */}
           <div className="flex-1">
@@ -642,7 +607,6 @@ export default function CommunityForumPage() {
                 </Button>
               </div>
             </div>
-
             {/* Tabs */}
             <Tabs value={selectedCategory} onValueChange={setSelectedCategory} className="w-full">
               <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-white p-1 rounded-lg shadow-sm mb-6 overflow-x-auto">
@@ -662,9 +626,12 @@ export default function CommunityForumPage() {
                   </TabsTrigger>
                 ))}
               </TabsList>
-
               <TabsContent value={selectedCategory} className="space-y-4">
-                {sortedPosts.length > 0 ? (
+                {isLoading ? (
+                  <div className="flex justify-center py-12">
+                    <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+                  </div>
+                ) : sortedPosts.length > 0 ? (
                   sortedPosts.map((post) => (
                     <Card key={post.id} className="border-gray-200 hover:shadow-md transition-all duration-300">
                       <CardContent className="pt-6">
@@ -674,9 +641,9 @@ export default function CommunityForumPage() {
                               variant="ghost" 
                               size="sm" 
                               className="p-1 h-auto"
-                              onClick={() => toggleSavePost(post.id)}
+                              onClick={() => handleLikePost(post.id)}
                             >
-                              <Bookmark className={`h-5 w-5 ${post.isSaved ? 'text-blue-500 fill-current' : 'text-gray-400'}`} />
+                              <Heart className={`h-5 w-5 ${post.isLiked ? 'text-red-500 fill-current' : 'text-gray-400'}`} />
                             </Button>
                             <span className="text-xs text-gray-500">{post.likes}</span>
                           </div>
@@ -713,13 +680,13 @@ export default function CommunityForumPage() {
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
                                   <Avatar className="h-6 w-6">
-                                    <AvatarImage src={post.author.avatar} />
+                                    <AvatarImage src={post.author?.avatar} />
                                     <AvatarFallback>
-                                      {post.author.name.split(' ').map(n => n[0]).join('')}
+                                      {post.author?.name ? post.author.name.split(' ').map(n => n[0]).join('') : 'U'}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <span>{post.author.name}</span>
-                                  {post.author.role && (
+                                  <span>{post.author?.name || 'Unknown User'}</span>
+                                  {post.author?.role && (
                                     <Badge variant="outline" className="text-xs">
                                       {post.author.role}
                                     </Badge>
@@ -740,6 +707,14 @@ export default function CommunityForumPage() {
                                   <Eye className="h-3 w-3" />
                                   <span>{post.views}</span>
                                 </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="p-1 h-auto"
+                                  onClick={() => handleSavePost(post.id)}
+                                >
+                                  <Bookmark className={`h-4 w-4 ${post.isSaved ? 'text-blue-500 fill-current' : 'text-gray-400'}`} />
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -768,7 +743,6 @@ export default function CommunityForumPage() {
               </TabsContent>
             </Tabs>
           </div>
-
           {/* Sidebar */}
           <div className="w-full lg:w-80 space-y-6">
             {/* About Community */}
@@ -796,7 +770,6 @@ export default function CommunityForumPage() {
                 </div>
               </CardContent>
             </Card>
-
             {/* Trending Topics */}
             <Card className="border-gray-200">
               <CardHeader>
@@ -814,42 +787,18 @@ export default function CommunityForumPage() {
                       onClick={() => handleTrendingTopicClick(topic)}
                     >
                       <span className={`text-blue-600 ${selectedTrendingTopic === topic ? 'font-medium' : ''}`}>{topic}</span>
-                      <Badge variant="outline">{Math.floor(Math.random() * 50) + 10} posts</Badge>
+                      <Badge variant="outline">
+                        {posts.filter(post => 
+                          post.title.toLowerCase().includes(topic.replace('#', '').toLowerCase()) ||
+                          post.content.toLowerCase().includes(topic.replace('#', '').toLowerCase()) ||
+                          post.tags.some(tag => tag.toLowerCase().includes(topic.replace('#', '').toLowerCase()))
+                        ).length} posts
+                      </Badge>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
-
-            {/* Community Leaders */}
-            <Card className="border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg">Community Leaders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { name: "Sarah Johnson", role: "Community Leader", avatar: "" },
-                    { name: "Michael Torres", role: "Community Guide", avatar: "" },
-                    { name: "Jordan Patel", role: "Community Leader", avatar: "" }
-                  ].map((leader, index) => (
-                    <div key={index} className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={leader.avatar} />
-                        <AvatarFallback>
-                          {leader.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{leader.name}</div>
-                        <div className="text-sm text-gray-500">{leader.role}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Community Guidelines */}
             <Card className="border-gray-200">
               <CardHeader>
@@ -859,34 +808,11 @@ export default function CommunityForumPage() {
                 <p className="text-gray-600 mb-3">
                   Please read and follow our community guidelines to maintain a positive and supportive environment.
                 </p>
-                <Dialog open={isGuidelinesModalOpen} onOpenChange={setIsGuidelinesModalOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full">
-                      Read Guidelines
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[600px]">
-                    <DialogHeader>
-                      <DialogTitle>Community Guidelines</DialogTitle>
-                      <DialogDescription>
-                        Please follow these guidelines to maintain a positive and supportive community environment.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-                      {communityGuidelines.map((guideline, index) => (
-                        <div key={index} className="flex items-start gap-3">
-                          <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>{guideline}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex justify-end mt-4">
-                      <Button onClick={() => setIsGuidelinesModalOpen(false)}>
-                        I Understand
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Link href="/dashboard/community/guidelines">
+                  <Button variant="outline" className="w-full">
+                    Read Guidelines
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           </div>

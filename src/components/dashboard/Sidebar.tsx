@@ -31,7 +31,7 @@ const navigation = [
   { name: "Mood Tracker", href: "/dashboard/mood", icon: BarChart3 },
   { name: "Insights", href: "/dashboard/insights", icon: Brain },
   { name: "Activities", href: "/dashboard/activities", icon: Activity },
-  { name: "Community Forum", href: "/dashboard/community-forum", icon: Users },
+  { name: "Community", href: "/dashboard/community", icon: Users },
   { name: "Profile", href: "/dashboard/profile", icon: User },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];

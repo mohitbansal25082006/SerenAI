@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+
+import { useState, useEffect, useCallback } from "react";
 import { 
   ChevronLeft, 
   Bookmark, 
@@ -12,7 +13,9 @@ import {
   Pin,
   Lock,
   CheckCircle,
-  Flame
+  Flame,
+  Heart,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +30,7 @@ interface ForumPost {
   title: string;
   content: string;
   author: {
+    id: string;
     name: string;
     avatar?: string;
     role?: string;
@@ -41,11 +45,16 @@ interface ForumPost {
   isLocked: boolean;
   isSolved: boolean;
   trending: boolean;
+  isSaved?: boolean;
+  isLiked?: boolean;
 }
 
 export default function SavedPostsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("latest");
+  const [posts, setPosts] = useState<ForumPost[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { collapsed } = useSidebar();
 
   const categories = [
@@ -55,71 +64,39 @@ export default function SavedPostsPage() {
     { id: "feedback", name: "Feedback", color: "bg-pink-100 text-pink-800" },
   ];
 
-  // Mock saved posts data
-  const savedPosts: ForumPost[] = [
-    {
-      id: "1",
-      title: "How has SerenAI helped you in your mental wellness journey?",
-      content: "I wanted to start a discussion about how SerenAI has positively impacted people's mental health. For me, it's been a game-changer in helping me track my mood patterns and understand my emotions better.",
-      author: {
-        name: "Sarah Johnson",
-        avatar: "",
-        role: "Community Leader"
-      },
-      category: "general",
-      tags: ["personal-experience", "mental-health"],
-      likes: 42,
-      replies: 18,
-      views: 256,
-      createdAt: "2023-06-15",
-      isPinned: true,
-      isLocked: false,
-      isSolved: false,
-      trending: true
-    },
-    {
-      id: "3",
-      title: "Tips for new users getting started with SerenAI",
-      content: "I thought I'd share some tips that helped me when I first started using SerenAI. These might be helpful for others who are just beginning their mental wellness journey with the app.",
-      author: {
-        name: "Michael Torres",
-        avatar: "",
-        role: "Community Guide"
-      },
-      category: "support",
-      tags: ["tips", "getting-started", "beginners"],
-      likes: 56,
-      replies: 24,
-      views: 312,
-      createdAt: "2023-06-13",
-      isPinned: true,
-      isLocked: false,
-      isSolved: false,
-      trending: true
-    },
-    {
-      id: "6",
-      title: "Weekly Challenge: Gratitude Journaling",
-      content: "I'm starting a weekly challenge for anyone interested. For the next 7 days, let's all try to write at least 3 gratitude journal entries per day. At the end of the week, we can share how it impacted our mood and outlook!",
-      author: {
-        name: "Jordan Patel",
-        avatar: "",
-        role: "Community Leader"
-      },
-      category: "general",
-      tags: ["challenge", "gratitude", "journaling"],
-      likes: 37,
-      replies: 15,
-      views: 189,
-      createdAt: "2023-06-10",
-      isPinned: false,
-      isLocked: false,
-      isSolved: false,
-      trending: true
+  // Fetch saved posts - using useCallback to prevent unnecessary re-renders
+  const fetchSavedPosts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/posts/saved");
+      if (response.ok) {
+        const data = await response.json();
+        setPosts(data.posts || []); // Ensure we always have an array
+      } else {
+        setPosts([]); // Set empty array on error
+      }
+    } catch (error) {
+      console.error("Error fetching saved posts:", error);
+      setPosts([]); // Set empty array on error
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  }, []);
 
-  const filteredPosts = savedPosts.filter(post => {
+  // Initial fetch
+  useEffect(() => {
+    fetchSavedPosts();
+  }, [fetchSavedPosts]);
+
+  // Refresh posts every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchSavedPosts();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchSavedPosts]);
+
+  const filteredPosts = posts.filter(post => {
     return post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
            post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
            post.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -157,6 +134,58 @@ export default function SavedPostsPage() {
     });
   };
 
+  const handleLikePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}/like`, {
+        method: "POST",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update the post in the list
+        setPosts(posts.map(post => 
+          post.id === postId 
+            ? { 
+                ...post, 
+                likes: data.likes,
+                isLiked: data.liked
+              } 
+            : post
+        ));
+      }
+    } catch (error) {
+      console.error("Error liking post:", error);
+    }
+  };
+
+  const handleSavePost = async (postId: string) => {
+    try {
+      const response = await fetch(`/api/posts/${postId}/save`, {
+        method: "POST",
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update the post in the list
+        setPosts(posts.map(post => 
+          post.id === postId 
+            ? { ...post, isSaved: data.saved } 
+            : post
+        ));
+      }
+    } catch (error) {
+      console.error("Error saving post:", error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchSavedPosts();
+    setIsRefreshing(false);
+  };
+
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -169,6 +198,15 @@ export default function SavedPostsPage() {
             </Link>
             <h1 className="text-3xl font-bold">Saved Posts</h1>
           </div>
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Search and Filter */}
@@ -201,15 +239,24 @@ export default function SavedPostsPage() {
         </div>
 
         {/* Saved Posts */}
-        {sortedPosts.length > 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+          </div>
+        ) : sortedPosts.length > 0 ? (
           <div className="space-y-4">
             {sortedPosts.map((post) => (
               <Card key={post.id} className="border-gray-200 hover:shadow-md transition-all duration-300">
                 <CardContent className="pt-6">
                   <div className="flex gap-4">
                     <div className="flex flex-col items-center">
-                      <Button variant="ghost" size="sm" className="p-1 h-auto">
-                        <Bookmark className="h-5 w-5 text-blue-500 fill-current" />
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="p-1 h-auto"
+                        onClick={() => handleLikePost(post.id)}
+                      >
+                        <Heart className={`h-5 w-5 ${post.isLiked ? 'text-red-500 fill-current' : 'text-gray-400'}`} />
                       </Button>
                       <span className="text-xs text-gray-500">{post.likes}</span>
                     </div>
@@ -246,13 +293,13 @@ export default function SavedPostsPage() {
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-2">
                             <Avatar className="h-6 w-6">
-                              <AvatarImage src={post.author.avatar} />
+                              <AvatarImage src={post.author?.avatar} />
                               <AvatarFallback>
-                                {post.author.name.split(' ').map(n => n[0]).join('')}
+                                {post.author?.name ? post.author.name.split(' ').map(n => n[0]).join('') : 'U'}
                               </AvatarFallback>
                             </Avatar>
-                            <span>{post.author.name}</span>
-                            {post.author.role && (
+                            <span>{post.author?.name || 'Unknown User'}</span>
+                            {post.author?.role && (
                               <Badge variant="outline" className="text-xs">
                                 {post.author.role}
                               </Badge>
@@ -273,6 +320,14 @@ export default function SavedPostsPage() {
                             <Eye className="h-3 w-3" />
                             <span>{post.views}</span>
                           </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="p-1 h-auto"
+                            onClick={() => handleSavePost(post.id)}
+                          >
+                            <Bookmark className={`h-4 w-4 ${post.isSaved ? 'text-blue-500 fill-current' : 'text-gray-400'}`} />
+                          </Button>
                         </div>
                       </div>
                     </div>

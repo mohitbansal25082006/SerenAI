@@ -1089,9 +1089,9 @@ At SerenAI, we believe privacy is fundamental to trust. We're committed to prote
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
                   <Users className="h-6 w-6 text-green-600" />
                 </div>
-                <h3 className="font-bold mb-2">Community Forum</h3>
+                <h3 className="font-bold mb-2">Community</h3>
                 <p className="text-gray-600 mb-4">Connect with other users and share your experiences with SerenAI.</p>
-                <Link href="/dashboard/community-forum">
+                <Link href="/dashboard/community">
                   <Button variant="outline" className="w-full">
                     Join Community
                   </Button>
