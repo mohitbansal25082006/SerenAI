@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ArrowLeft, History, Save, X, Mic, MicOff } from "lucide-react";
+import { Send, Trash2, ArrowLeft, History, Save, X, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,23 +15,19 @@ interface SpeechRecognitionResult {
   transcript: string;
   confidence: number;
 }
-
 interface SpeechRecognitionResultList {
   length: number;
   item(index: number): SpeechRecognitionResult[];
   [index: number]: SpeechRecognitionResult[];
 }
-
 interface SpeechRecognitionEvent extends Event {
   resultIndex: number;
   results: SpeechRecognitionResultList;
 }
-
 interface SpeechRecognitionErrorEvent extends Event {
   error: string;
   message: string;
 }
-
 interface SpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
@@ -42,7 +38,6 @@ interface SpeechRecognition extends EventTarget {
   onerror: (event: SpeechRecognitionErrorEvent) => void;
   onend: () => void;
 }
-
 interface Window {
   SpeechRecognition: {
     new (): SpeechRecognition;
@@ -50,6 +45,7 @@ interface Window {
   webkitSpeechRecognition: {
     new (): SpeechRecognition;
   };
+  speechSynthesis: SpeechSynthesis;
 }
 
 interface Message {
@@ -91,18 +87,21 @@ export default function ChatPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [ttsSupported, setTtsSupported] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { collapsed } = useSidebar();
 
-  // Check if browser supports speech recognition
+  // Check if browser supports speech recognition and text-to-speech
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as unknown as Window).SpeechRecognition || 
                                (window as unknown as Window).webkitSpeechRecognition;
       setSpeechSupported(!!SpeechRecognition);
+      setTtsSupported('speechSynthesis' in window);
       
       if (SpeechRecognition) {
         recognitionRef.current = new SpeechRecognition();
@@ -161,11 +160,58 @@ export default function ChatPage() {
     inputRef.current?.focus();
   }, []);
 
+  // Text-to-speech function
+  const speakText = (text: string) => {
+    if (!ttsSupported || !ttsEnabled) return;
+    
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Toggle text-to-speech
+  const toggleTts = () => {
+    if (!ttsSupported) {
+      toast.error('Text-to-speech is not supported in your browser.');
+      return;
+    }
+    
+    setTtsEnabled(!ttsEnabled);
+    
+    if (ttsEnabled) {
+      // If turning off, cancel any ongoing speech
+      window.speechSynthesis.cancel();
+    }
+  };
+
+  // Speak assistant messages when they arrive
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant') {
+        speakText(lastMessage.content);
+      }
+    }
+    
+    // Cleanup speech synthesis on unmount
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [messages]);
+
   const toggleListening = () => {
     if (!speechSupported) {
       toast.error('Speech recognition is not supported in your browser.');
       return;
     }
+    
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
@@ -379,6 +425,15 @@ export default function ChatPage() {
               <Save className="h-4 w-4" />
               {isSaving ? "Saving..." : "Save"}
             </Button>
+            <Button 
+              variant="outline" 
+              onClick={toggleTts}
+              disabled={!ttsSupported}
+              className={`gap-2 ${ttsEnabled ? 'bg-green-100 text-green-700' : ''}`}
+            >
+              {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              {ttsEnabled ? "Voice On" : "Voice Off"}
+            </Button>
             <Button variant="outline" onClick={handleClearChat} className="gap-2">
               <Trash2 className="h-4 w-4" />
               Clear Chat
@@ -539,6 +594,12 @@ export default function ChatPage() {
               {!speechSupported && (
                 <div className="mt-2 text-sm text-gray-500">
                   Speech recognition is not supported in your browser.
+                </div>
+              )}
+              
+              {!ttsSupported && (
+                <div className="mt-2 text-sm text-gray-500">
+                  Text-to-speech is not supported in your browser.
                 </div>
               )}
             </div>
