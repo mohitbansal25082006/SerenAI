@@ -21,63 +21,106 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import { toast } from "sonner";
-import { NotificationScheduler } from "@/lib/scheduler";
 
 export default function SettingsPage() {
+  // Notification settings
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailReminders, setEmailReminders] = useState(true);
   const [dailyDigest, setDailyDigest] = useState(true);
+  
+  // Privacy & Security settings
   const [dataSharing, setDataSharing] = useState(true);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [isEnabling2FA, setIsEnabling2FA] = useState(false);
+  
+  // UI states
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState<'notifications' | 'privacy' | null>(null);
   
   // Delete account states
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   
-  const { user } = useUser();
+  const { user } = useUser(); // This is kept for potential future use
   const { collapsed } = useSidebar();
   const router = useRouter();
   const { signOut } = useClerk();
   
   // Load settings from localStorage on mount
   useEffect(() => {
-    const savedSettings = JSON.parse(localStorage.getItem('userSettings') || '{}');
-    
-    if (savedSettings.notificationsEnabled !== undefined) {
-      setNotificationsEnabled(savedSettings.notificationsEnabled);
-    }
-    if (savedSettings.emailReminders !== undefined) {
-      setEmailReminders(savedSettings.emailReminders);
-    }
-    if (savedSettings.dailyDigest !== undefined) {
-      setDailyDigest(savedSettings.dailyDigest);
-    }
-    if (savedSettings.dataSharing !== undefined) {
-      setDataSharing(savedSettings.dataSharing);
+    try {
+      const savedSettings = JSON.parse(localStorage.getItem('userSettings') || '{}');
+      
+      if (savedSettings.notificationsEnabled !== undefined) {
+        setNotificationsEnabled(savedSettings.notificationsEnabled);
+      }
+      if (savedSettings.emailReminders !== undefined) {
+        setEmailReminders(savedSettings.emailReminders);
+      }
+      if (savedSettings.dailyDigest !== undefined) {
+        setDailyDigest(savedSettings.dailyDigest);
+      }
+      if (savedSettings.dataSharing !== undefined) {
+        setDataSharing(savedSettings.dataSharing);
+      }
+      if (savedSettings.twoFactorEnabled !== undefined) {
+        setTwoFactorEnabled(savedSettings.twoFactorEnabled);
+      }
+    } catch (error) {
+      console.error("Error loading settings:", error);
     }
   }, []);
   
-  // Auto-save settings to localStorage when they change and reschedule notifications
+  // Check for unsaved changes
   useEffect(() => {
-    const settings = {
-      notificationsEnabled,
-      emailReminders,
-      dailyDigest,
-      dataSharing
-    };
-    localStorage.setItem('userSettings', JSON.stringify(settings));
-    
-    // Reschedule notifications when relevant settings change
-    if (typeof window !== 'undefined' && (notificationsEnabled || emailReminders || dailyDigest)) {
-      try {
-        NotificationScheduler.getInstance().reschedule();
-      } catch (error) {
-        console.error("Error rescheduling notifications:", error);
-      }
+    try {
+      const savedSettings = JSON.parse(localStorage.getItem('userSettings') || '{}');
+      
+      const currentSettings = {
+        notificationsEnabled,
+        emailReminders,
+        dailyDigest,
+        dataSharing,
+        twoFactorEnabled
+      };
+      
+      const hasChanges = JSON.stringify(savedSettings) !== JSON.stringify(currentSettings);
+      setHasUnsavedChanges(hasChanges);
+    } catch (error) {
+      console.error("Error checking for unsaved changes:", error);
     }
-  }, [notificationsEnabled, emailReminders, dailyDigest, dataSharing]);
+  }, [notificationsEnabled, emailReminders, dailyDigest, dataSharing, twoFactorEnabled]);
+  
+  const handleSaveSettings = async (section: 'notifications' | 'privacy') => {
+    setIsSaving(true);
+    setActiveSection(section);
+    
+    try {
+      const settings = {
+        notificationsEnabled,
+        emailReminders,
+        dailyDigest,
+        dataSharing,
+        twoFactorEnabled
+      };
+      
+      localStorage.setItem('userSettings', JSON.stringify(settings));
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast.success(`${section === 'notifications' ? 'Notification' : 'Privacy & Security'} settings saved successfully`);
+      setHasUnsavedChanges(false);
+      setActiveSection(null);
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      toast.error("Failed to save settings. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
   
   const handleSignOut = () => {
     signOut().then(() => router.push("/"));
@@ -86,8 +129,10 @@ export default function SettingsPage() {
   const handleEnable2FA = async () => {
     setIsEnabling2FA(true);
     try {
+      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
       setTwoFactorEnabled(true);
+      setHasUnsavedChanges(true);
       toast.success("Two-factor authentication enabled successfully");
     } catch (error) {
       console.error("Error enabling 2FA:", error);
@@ -101,8 +146,10 @@ export default function SettingsPage() {
     if (!confirm("Are you sure you want to disable two-factor authentication?")) return;
     
     try {
+      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       setTwoFactorEnabled(false);
+      setHasUnsavedChanges(true);
       toast.success("Two-factor authentication disabled");
     } catch (error) {
       console.error("Error disabling 2FA:", error);
@@ -116,7 +163,7 @@ export default function SettingsPage() {
   
   const confirmDeleteAccount = async () => {
     if (deleteConfirmationText !== "DELETE") {
-      toast.error('Please type &quot;DELETE&quot; to confirm account deletion');
+      toast.error('Please type "DELETE" to confirm account deletion');
       return;
     }
     
@@ -150,6 +197,26 @@ export default function SettingsPage() {
     }
   };
   
+  const handleExportData = async () => {
+    try {
+      const response = await fetch('/api/insights/export');
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `serenai-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success("Data exported successfully");
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      toast.error("Failed to export data");
+    }
+  };
+  
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -162,16 +229,41 @@ export default function SettingsPage() {
             </Link>
             <h1 className="text-2xl font-bold">Settings</h1>
           </div>
+          {hasUnsavedChanges && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-amber-600 bg-amber-100 px-2 py-1 rounded">
+                You have unsaved changes
+              </span>
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  handleSaveSettings(activeSection || 'notifications');
+                }}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save All"}
+              </Button>
+            </div>
+          )}
         </div>
         
         <div className="space-y-6">
           {/* Notifications */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                Notifications
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Notifications
+                </CardTitle>
+                <Button 
+                  size="sm" 
+                  onClick={() => handleSaveSettings('notifications')}
+                  disabled={isSaving || activeSection === 'notifications'}
+                >
+                  {isSaving && activeSection === 'notifications' ? "Saving..." : "Save"}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
@@ -182,7 +274,10 @@ export default function SettingsPage() {
                 <Switch
                   id="notifications"
                   checked={notificationsEnabled}
-                  onCheckedChange={setNotificationsEnabled}
+                  onCheckedChange={(checked) => {
+                    setNotificationsEnabled(checked);
+                    setHasUnsavedChanges(true);
+                  }}
                 />
               </div>
               
@@ -194,7 +289,10 @@ export default function SettingsPage() {
                 <Switch
                   id="reminders"
                   checked={emailReminders}
-                  onCheckedChange={setEmailReminders}
+                  onCheckedChange={(checked) => {
+                    setEmailReminders(checked);
+                    setHasUnsavedChanges(true);
+                  }}
                 />
               </div>
               
@@ -206,19 +304,31 @@ export default function SettingsPage() {
                 <Switch
                   id="digest"
                   checked={dailyDigest}
-                  onCheckedChange={setDailyDigest}
+                  onCheckedChange={(checked) => {
+                    setDailyDigest(checked);
+                    setHasUnsavedChanges(true);
+                  }}
                 />
               </div>
             </CardContent>
           </Card>
           
-          {/* Privacy */}
+          {/* Privacy & Security */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Privacy &amp; Security
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Privacy &amp; Security
+                </CardTitle>
+                <Button 
+                  size="sm" 
+                  onClick={() => handleSaveSettings('privacy')}
+                  disabled={isSaving || activeSection === 'privacy'}
+                >
+                  {isSaving && activeSection === 'privacy' ? "Saving..." : "Save"}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
@@ -229,7 +339,10 @@ export default function SettingsPage() {
                 <Switch
                   id="data-sharing"
                   checked={dataSharing}
-                  onCheckedChange={setDataSharing}
+                  onCheckedChange={(checked) => {
+                    setDataSharing(checked);
+                    setHasUnsavedChanges(true);
+                  }}
                 />
               </div>
               
@@ -301,9 +414,7 @@ export default function SettingsPage() {
                   <Label>Export Data</Label>
                   <p className="text-sm text-gray-600">Download all your data</p>
                 </div>
-                <Button variant="outline" onClick={() => {
-                  toast.info("Export functionality would be implemented here");
-                }}>
+                <Button variant="outline" onClick={handleExportData}>
                   Export
                 </Button>
               </div>
@@ -353,7 +464,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium">To confirm, type &quot;DELETE&quot; below:</p>
                 <Input
                   value={deleteConfirmationText}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDeleteConfirmationText(e.target.value)}
+                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
                   placeholder="Type DELETE to confirm"
                 />
               </div>
