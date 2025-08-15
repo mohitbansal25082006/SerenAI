@@ -170,22 +170,23 @@ export default function SettingsPage() {
     setIsDeletingAccount(true);
     
     try {
-      const response = await fetch('/api/user/delete', {
-        method: 'DELETE',
+      // First, delete the user from Clerk
+      await fetch('/api/delete-user', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
+
+      // Clear local storage
+      localStorage.clear();
       
-      if (response.ok) {
-        localStorage.clear();
-        await signOut();
-        toast.success("Account deleted successfully");
-        router.push('/');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Account deletion failed');
-      }
+      // Sign out the user
+      await signOut();
+      
+      // Redirect to home page
+      toast.success("Account deleted successfully");
+      router.push('/');
     } catch (error: unknown) {
       console.error("Error deleting account:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to delete account";
