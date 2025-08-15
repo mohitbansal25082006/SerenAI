@@ -1,5 +1,4 @@
 "use client";
-
 import { useState } from "react";
 import { 
   ChevronLeft, 
@@ -22,7 +21,7 @@ import Link from "next/link";
 export default function CommunityGuidelinesPage() {
   const [activeSection, setActiveSection] = useState("all");
   const { collapsed } = useSidebar();
-
+  
   const guidelines = {
     all: [
       {
@@ -78,12 +77,12 @@ export default function CommunityGuidelinesPage() {
     encouraged: [],
     prohibited: []
   };
-
+  
   // Filter guidelines based on active section
   const filteredGuidelines = activeSection === "all" 
     ? guidelines.all 
     : guidelines[activeSection as keyof typeof guidelines] || [];
-
+    
   return (
     <div className={`min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 text-gray-900 transition-all duration-300 ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -97,7 +96,7 @@ export default function CommunityGuidelinesPage() {
             <h1 className="text-3xl font-bold">Community Guidelines</h1>
           </div>
         </div>
-
+        
         {/* Header */}
         <Card className="mb-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
           <CardContent className="pt-8">
@@ -121,7 +120,7 @@ export default function CommunityGuidelinesPage() {
             </div>
           </CardContent>
         </Card>
-
+        
         {/* Filter Tabs */}
         <div className="flex flex-wrap gap-2 mb-8">
           <Button 
@@ -157,7 +156,7 @@ export default function CommunityGuidelinesPage() {
             Prohibited Actions
           </Button>
         </div>
-
+        
         {/* Guidelines List */}
         <div className="space-y-6">
           {filteredGuidelines.map((guideline, index) => (
@@ -192,7 +191,7 @@ export default function CommunityGuidelinesPage() {
             </Card>
           ))}
         </div>
-
+        
         {/* Reporting Section */}
         <Card className="mt-8 border-blue-200 bg-blue-50">
           <CardHeader>
@@ -246,7 +245,7 @@ export default function CommunityGuidelinesPage() {
             </div>
           </CardContent>
         </Card>
-
+        
         {/* Consequences Section */}
         <Card className="mt-8 border-red-200 bg-red-50">
           <CardHeader>
@@ -291,7 +290,7 @@ export default function CommunityGuidelinesPage() {
             </div>
           </CardContent>
         </Card>
-
+        
         {/* Contact Section */}
         <Card className="mt-8">
           <CardHeader>
@@ -302,10 +301,12 @@ export default function CommunityGuidelinesPage() {
               If you have questions about these guidelines or need to report a violation, 
               please contact our moderation team.
             </p>
-            <Button className="gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Contact Moderators
-            </Button>
+            <Link href="/dashboard/contact-support">
+              <Button className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Contact Moderators
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
