@@ -1,6 +1,6 @@
+// E:\serenai\src\app\dashboard\page.tsx
 "use client";
-import React from "react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import ThreeBackground from "@/components/dashboard/ThreeBackground";
 import { motion } from "framer-motion";
 import {
@@ -72,6 +72,14 @@ export default function Dashboard(): React.ReactElement {
   
   const { collapsed } = useSidebar();
   const { user, isLoaded } = useUser();
+  
+  // Force light mode on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, []);
   
   // Set greeting based on time of day
   useEffect(() => {

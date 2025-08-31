@@ -6,9 +6,6 @@ import {
   Calendar, 
   ChevronLeft,
   Shield,
-  Moon,
-  Sun,
-  Monitor,
   Camera,
   Edit,
   Save,
@@ -21,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useSidebar } from "@/contexts/SidebarContext";
 import Link from "next/link";
-import { useTheme } from "next-themes";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -46,16 +42,14 @@ export default function ProfilePage() {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const { collapsed } = useSidebar();
-  const { theme, setTheme } = useTheme();
   const router = useRouter();
   
-  // Set initial theme to light if not already set
+  // Set default theme to light
   useEffect(() => {
-    if (typeof window !== 'undefined' && !localStorage.getItem('theme')) {
-      setTheme('light');
+    if (typeof window !== 'undefined') {
       localStorage.setItem('theme', 'light');
     }
-  }, [setTheme]);
+  }, []);
   
   // Load privacy settings from localStorage
   useEffect(() => {
@@ -326,55 +320,6 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
                     <Calendar className="h-4 w-4 text-gray-500" />
                     <span>{user?.createdAt ? formatDate(user.createdAt) : "Unknown"}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Preferences</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Theme</label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={theme === "light" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        setTheme("light");
-                        localStorage.setItem('theme', 'light');
-                      }}
-                      className="gap-2"
-                    >
-                      <Sun className="h-4 w-4" />
-                      Light
-                    </Button>
-                    <Button
-                      variant={theme === "dark" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        setTheme("dark");
-                        localStorage.setItem('theme', 'dark');
-                      }}
-                      className="gap-2"
-                    >
-                      <Moon className="h-4 w-4" />
-                      Dark
-                    </Button>
-                    <Button
-                      variant={theme === "system" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        setTheme("system");
-                        localStorage.setItem('theme', 'system');
-                      }}
-                      className="gap-2"
-                    >
-                      <Monitor className="h-4 w-4" />
-                      System
-                    </Button>
                   </div>
                 </div>
               </CardContent>
