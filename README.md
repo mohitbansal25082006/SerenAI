@@ -212,9 +212,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-- **Project Link**: [https://github.com/yourusername/serenai](https://github.com/yourusername/serenai)
+- **Project Link**: [https://github.com/yourusername/serenai](https://github.com/mohitbansal25082006/serenai)
 - **Live Demo**: [https://serenai-iota.vercel.app/](https://serenai-iota.vercel.app/)
-- **Issues**: [https://github.com/yourusername/serenai/issues](https://github.com/yourusername/serenai/issues)
+- **Issues**: [https://github.com/yourusername/serenai/issues](https://github.com/mohitbansal25082006/serenai/issues)
 
 ---
 
