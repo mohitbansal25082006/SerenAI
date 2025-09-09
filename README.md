@@ -6,6 +6,10 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.4-cyan)](https://tailwindcss.com/)
 
+
+![SerenAI Banner](public/banner.png)
+
+
 **Live Demo**: [https://serenai-iota.vercel.app/](https://serenai-iota.vercel.app/)
 
 SerenAI is a cutting-edge mental wellness application that leverages artificial intelligence to provide empathetic support, mood tracking, and personalized insights. Built with Next.js and powered by OpenAI's GPT-4, SerenAI offers a safe space for users to explore their feelings, track their emotional well-being, and receive personalized mental health guidance.
